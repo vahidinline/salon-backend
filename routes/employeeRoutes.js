@@ -69,4 +69,36 @@ router.put('/:id/availability', async (req, res) => {
   res.json(employee);
 });
 
+// POST /salons/:salonId/employees/:employeeId/book
+router.post('/:employeeId/book', async (req, res) => {
+  const { serviceId, start, end } = req.body;
+  const employeeId = req.params.employeeId;
+
+  // Check overlapping bookings
+  const conflict = await Availability.findOne({
+    employee: employeeId,
+    isBooked: true,
+    $or: [
+      { start: { $lt: new Date(end), $gte: new Date(start) } },
+      { end: { $gt: new Date(start), $lte: new Date(end) } },
+      { start: { $lte: new Date(start) }, end: { $gte: new Date(end) } },
+    ],
+  });
+
+  if (conflict) {
+    return res.status(400).json({ error: 'Time slot unavailable' });
+  }
+
+  const availability = new Availability({
+    employee: employeeId,
+    service: serviceId,
+    start: new Date(start),
+    end: new Date(end),
+    isBooked: true,
+  });
+
+  await availability.save();
+  res.json(availability);
+});
+
 module.exports = router;
