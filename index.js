@@ -8,6 +8,7 @@ const salonRoutes = require('./routes/salonRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
+const clientAuth = require('./routes/clientAuth.route');
 
 const app = express();
 app.use(express.json());
@@ -18,9 +19,10 @@ app.get('/health', (req, res) => res.status(200).send('OK'));
 
 app.use('/auth', authRoutes);
 app.use('/salons', salonRoutes);
+app.use('/client-auth', clientAuth);
 app.use('/salons/:salonId/employees', employeeRoutes);
 app.use('/salons/:salonId/services', serviceRoutes);
-app.use('/employees/:employeeId/availability', availabilityRoutes);
+app.use('/employees/:salonId/availability', availabilityRoutes);
 
 const uri = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5001;
