@@ -5,7 +5,7 @@ const Employee = require('../models/Employee');
 // Get employees of a salon
 router.get('/', async (req, res) => {
   console.log('salon id in employee routes', req);
-  return;
+
   const employees = await Employee.find({ salon: req.params.salonId }).populate(
     'services'
   );

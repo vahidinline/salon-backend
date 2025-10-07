@@ -25,7 +25,10 @@ const employeeSchema = new mongoose.Schema(
         ],
       },
     ], // Weekly schedule
-
+    phone: { type: String },
+    email: { type: String },
+    status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    phone: { type: String },
     startTime: { type: String, required: true }, // Example: "09:00"
     endTime: { type: String, required: true }, // Example: "17:00"
   },
