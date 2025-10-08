@@ -3,31 +3,31 @@ const mongoose = require('mongoose');
 const bookingSchema = new mongoose.Schema(
   {
     salon: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Salon',
-      required: true,
+      type: String,
+      // required: true,
     },
     employee: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Employee',
-      required: true,
+      type: String,
     },
     service: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Service',
+      type: String,
+
       required: true,
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User', // or null for guest booking
+      type: String,
+
       required: false,
     },
+    clientName: { type: String, required: true },
+    clientPhone: { type: String },
+    clientEmail: { type: String }, // Optional
     start: { type: Date, required: true }, // Start time of booking (Gregorian)
     end: { type: Date, required: true }, // Automatically start + service duration
     status: {
       type: String,
       enum: ['pending', 'confirmed', 'cancelled'],
-      default: 'confirmed',
+      default: 'pending',
     },
     notes: { type: String }, // Optional: extra data like preferences or comments
   },
