@@ -8,29 +8,39 @@ const employeeSchema = new mongoose.Schema(
       required: true,
     },
     name: { type: String, required: true },
+    services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
 
-    services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }], // Which services they offer
-
-    workDays: [
+    workSchedule: [
       {
-        type: String,
-        enum: [
-          'saturday',
-          'sunday',
-          'monday',
-          'tuesday',
-          'wednesday',
-          'thursday',
-          'friday',
-        ],
+        day: {
+          type: String,
+          enum: [
+            'saturday',
+            'sunday',
+            'monday',
+            'tuesday',
+            'wednesday',
+            'thursday',
+            'friday',
+            'شنبه',
+            'یکشنبه',
+            'دوشنبه',
+            'سه‌شنبه',
+            'چهارشنبه',
+            'پنجشنبه',
+            'جمعه',
+          ],
+          required: true,
+        },
+        startTime: { type: String, required: true }, // e.g. "10:30"
+        endTime: { type: String, required: true }, // e.g. "18:30"
       },
-    ], // Weekly schedule
+    ],
+
     phone: { type: String },
     email: { type: String },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
-    phone: { type: String },
-    startTime: { type: String, required: true }, // Example: "09:00"
-    endTime: { type: String, required: true }, // Example: "17:00"
+    avatar: { type: String, default: 'https://i.ibb.co/JW1sG7MT/avatar.png' },
   },
   { timestamps: true }
 );

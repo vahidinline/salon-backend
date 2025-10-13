@@ -4,7 +4,7 @@ const Employee = require('../models/Employee');
 
 // Get employees of a salon
 router.get('/', async (req, res) => {
-  console.log('salon id in employee routes', req);
+  // console.log('salon id in employee routes', req);
 
   const employees = await Employee.find({ salon: req.params.salonId }).populate(
     'services'
@@ -12,12 +12,41 @@ router.get('/', async (req, res) => {
   res.json(employees);
 });
 
+// Get employees of a salon by services
+router.get('/:id', async (req, res) => {
+  console.log('salon id in employee routes', req.params.id);
+
+  const employees = await Employee.find({
+    salon: req.params.salonId,
+    services: { $in: req.params.id.split(',') },
+  }).populate('services');
+  res.json(employees);
+});
+
 // Add employee
 router.post('/', async (req, res) => {
-  const employee = new Employee({ ...req.body, salon: req.params.salonId });
-  console.log('new employee from front', employee);
-  await employee.save();
-  res.json(employee);
+  try {
+    const { name, services, workSchedule, phone, email, status } = req.body;
+
+    const employee = new Employee({
+      salon: req.params.salonId,
+      name,
+      services,
+      workSchedule,
+      phone,
+      email,
+      status,
+      avatar: req.body.avatar || 'https://i.ibb.co/JW1sG7MT/avatar.png',
+    });
+
+    console.log('new employee from front', employee);
+
+    await employee.save();
+    res.status(201).json(employee);
+  } catch (err) {
+    console.error('Error creating employee:', err);
+    res.status(500).json({ error: 'Failed to create employee' });
+  }
 });
 
 // Get single employee

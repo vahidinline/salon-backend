@@ -14,7 +14,8 @@ router.get('/', async (req, res) => {
 // Add service
 router.post('/', async (req, res) => {
   const service = new Service({ ...req.body, salon: req.params.salonId });
-  //console.log(' new service', service);
+
+  console.log(' new service', service);
   await service.save();
   res.json(service);
 });
