@@ -59,17 +59,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// router.get('/', async (req, res) => {
-//   console.log('Fetching bookings for user:', req.params);
-//   try {
-//     const bookings = await Booking.find();
-//     res.json(bookings);
-//   } catch (error) {
-//     console.error('Error fetching bookings:', error);
-//     res.status(500).json({ error: 'Internal server error' });
-//   }
-// });
-
+//get all booking of specific user
 router.get('/', async (req, res) => {
   try {
     const { salonId } = req.params;
@@ -93,6 +83,21 @@ router.get('/', async (req, res) => {
     res.json(bookings);
   } catch (error) {
     console.error('❌ Error fetching bookings:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+router.get('/:bookingId', async (req, res) => {
+  try {
+    console.log('dfskgdkgkdjghjksjflkshgew', req.params.bookingId);
+
+    const { bookingId } = req.params;
+
+    const booking = await Booking.findById(bookingId);
+    console.log('booking found', booking);
+    res.json(booking);
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
