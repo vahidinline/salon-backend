@@ -59,15 +59,77 @@ router.post('/', async (req, res) => {
   }
 });
 
+// router.get('/', async (req, res) => {
+//   console.log('Fetching bookings for user:', req.params);
+//   try {
+//     const bookings = await Booking.find();
+//     res.json(bookings);
+//   } catch (error) {
+//     console.error('Error fetching bookings:', error);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
+
 router.get('/', async (req, res) => {
-  console.log('Fetching bookings for user:', req.params);
   try {
-    const bookings = await Booking.find();
+    const { salonId } = req.params;
+    const { user } = req.query;
+
+    console.log('🔍 salonId:', salonId);
+    console.log('🔍 user from query:', user);
+
+    const filter = { salon: salonId };
+
+    if (user && user !== 'undefined') {
+      filter.user = user.toString();
+    }
+
+    console.log('🧾 Final filter:', filter);
+
+    const bookings = await Booking.find(filter).sort({ createdAt: -1 }).lean();
+
+    console.log('✅ Found bookings:', bookings.length);
+
     res.json(bookings);
   } catch (error) {
-    console.error('Error fetching bookings:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error fetching bookings:', error);
+    res.status(500).json({ message: 'Server error', error });
   }
 });
+
+router.patch('/:id/receipt', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { receiptUrl } = req.body;
+    if (!receiptUrl) {
+      return res.status(400).json({ message: 'receiptUrl is required' });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // optional: disallow uploads if booking already expired / cancelled
+    const now = new Date();
+    if (booking.paymentDeadline && booking.paymentDeadline < now) {
+      return res.status(400).json({ message: 'Payment deadline has passed' });
+    }
+
+    booking.receiptUrl = receiptUrl;
+    booking.status = 'review'; // mark for manual review
+    await booking.save();
+
+    return res.json({
+      message: 'Receipt attached and booking marked for review',
+      booking,
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ message: 'Server error', error: err.message });
+  }
+});
+
+router.put('./id', async (req, res) => {});
 
 module.exports = router;
