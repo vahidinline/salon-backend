@@ -2,7 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
-
+const path = require('path');
+const uploadRouter = require('./routes/upload');
 const authRoutes = require('./routes/authRoutes');
 const salonRoutes = require('./routes/salonRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
@@ -25,7 +26,8 @@ app.use('/salons/:salonId/employees', employeeRoutes);
 app.use('/salons/:salonId/services', serviceRoutes);
 app.use('/salons/:salonId/bookings', require('./routes/Booking'));
 app.use('/employees/:salonId/availability', availabilityRoutes);
-
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/upload', uploadRouter);
 const uri = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5001;
 
