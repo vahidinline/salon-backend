@@ -89,12 +89,11 @@ router.get('/', async (req, res) => {
 
 router.get('/:bookingId', async (req, res) => {
   try {
-    console.log('dfskgdkgkdjghjksjflkshgew', req.params.bookingId);
-
     const { bookingId } = req.params;
 
     const booking = await Booking.findById(bookingId);
     console.log('booking found', booking);
+
     res.json(booking);
   } catch (error) {
     console.error('Error fetching bookings:', error);
@@ -135,6 +134,38 @@ router.patch('/:id/receipt', async (req, res) => {
   }
 });
 
-router.put('./id', async (req, res) => {});
+router.patch('/:id/cancel', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason) {
+      return res.status(400).json({ message: 'receiptUrl is required' });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // optional: disallow uploads if booking already expired / cancelled
+    // const now = new Date();
+    // if (booking.paymentDeadline && booking.paymentDeadline < now) {
+    //   return res.status(400).json({ message: 'Payment deadline has passed' });
+    // }
+
+    booking.cancelationReason = reason;
+    booking.status = 'cancelled';
+    booking.cancelationDate = new Date();
+    await booking.save();
+
+    return res.json({
+      message: 'Receipt attached and booking marked for review',
+      booking,
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ message: 'Server error', error: err.message });
+  }
+});
 
 module.exports = router;

@@ -10,6 +10,11 @@ const bookingSchema = new mongoose.Schema(
     recipientName: { type: String },
     clientType: { type: String },
     clientScore: { type: String },
+    cancelationDate: { type: Date },
+    cancelationReason: {
+      type: String,
+      enum: ['byUser', 'bySalon', 'unPaid'],
+    },
     expireAt: { type: Date, default: Date.now() + 1 },
     clientName: { type: String, required: true },
     clientPhone: { type: String },
