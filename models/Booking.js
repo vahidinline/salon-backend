@@ -2,19 +2,20 @@ const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema(
   {
-    salon: { type: String },
-    employee: { type: String },
-    service: { type: String, required: true },
+    salon: { type: mongoose.Schema.Types.ObjectId, ref: 'Salon' },
+    employee: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+    service: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Service',
+      required: true,
+    },
     user: { type: String },
     orderType: { type: String, default: 'self', enum: ['self', 'gift'] },
     recipientName: { type: String },
     clientType: { type: String },
     clientScore: { type: String },
     cancelationDate: { type: Date },
-    cancelationReason: {
-      type: String,
-      enum: ['byUser', 'bySalon', 'unPaid'],
-    },
+    cancelationReason: { type: String, enum: ['byUser', 'bySalon', 'unPaid'] },
     expireAt: { type: Date, default: Date.now() + 1 },
     clientName: { type: String, required: true },
     clientPhone: { type: String },
