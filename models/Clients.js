@@ -67,6 +67,21 @@ const ClientSchema = new mongoose.Schema(
       default: 'pending',
       enum: ['active', 'inactive', 'banned', 'deleted', 'pending', 'trial'],
     },
+    clientType: {
+      type: String,
+      enum: [
+        'new',
+        'regular',
+        'vip',
+        'vvip',
+        'influencer',
+        'staff',
+        'partner',
+        'other',
+        'defaulter',
+      ],
+      default: 'regular',
+    },
     paymentType: String,
     acceptTerms: {
       type: Boolean,
