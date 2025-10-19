@@ -11,7 +11,7 @@ const serviceRoutes = require('./routes/serviceRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const clientAuth = require('./routes/clientAuth.route');
 const Booking = require('./models/Booking');
-
+const cron = require('node-cron');
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -41,3 +41,31 @@ mongoose
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => console.error('❌ MongoDB connection error:', err));
+
+cron.schedule('*/10 * * * *', async () => {
+  try {
+    const now = new Date();
+    console.log('Running auto-cancel cron job at', now);
+    const result = await Booking.updateMany(
+      {
+        status: 'pending',
+        paymentDeadline: { $lt: now },
+      },
+      {
+        $set: {
+          status: 'cancelled',
+          cancelationReason: 'unPaid',
+          cancelationDate: now,
+        },
+      }
+    );
+
+    if (result.modifiedCount > 0) {
+      console.log(`⏰ Auto-cancelled ${result.modifiedCount} unpaid bookings.`);
+    } else {
+      console.log('⏰ No unpaid bookings to auto-cancel at this time.');
+    }
+  } catch (err) {
+    console.error('Error in auto-cancel cron job:', err);
+  }
+});

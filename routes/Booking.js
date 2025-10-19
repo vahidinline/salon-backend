@@ -18,18 +18,6 @@ router.post('/', async (req, res) => {
       notes,
     } = req.body;
     console.log('Received booking data:', req.body);
-    // Basic validation
-    // if (
-    //   !salon ||
-    //   !employee ||
-    //   !service ||
-    //   !start ||
-    //   !end ||
-    //   !clientName ||
-    //   !clientPhone
-    // ) {
-    //   return res.status(400).json({ error: 'Missing required fields' });
-    // }
 
     // Create new booking document
     const booking = new Booking({
@@ -58,34 +46,6 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-//get all booking of specific user
-// router.get('/', async (req, res) => {
-//   try {
-//     const { salonId } = req.params;
-//     const { user } = req.query;
-
-//     console.log('🔍 salonId:', salonId);
-//     console.log('🔍 user from query:', user);
-
-//     const filter = { salon: salonId };
-
-//     if (user && user !== 'undefined') {
-//       filter.user = user.toString();
-//     }
-
-//     console.log('🧾 Final filter:', filter);
-
-//     const bookings = await Booking.find(filter).sort({ createdAt: -1 }).lean();
-
-//     console.log('✅ Found bookings:', bookings.length);
-
-//     res.json(bookings);
-//   } catch (error) {
-//     console.error('❌ Error fetching bookings:', error);
-//     res.status(500).json({ message: 'Server error', error });
-//   }
-// });
 
 router.get('/', async (req, res) => {
   try {
