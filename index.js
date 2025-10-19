@@ -25,7 +25,10 @@ app.use('/client-auth', clientAuth);
 app.use('/salons/:salonId/employees', employeeRoutes);
 app.use('/salons/:salonId/services', serviceRoutes);
 app.use('/salons/:salonId/bookings', require('./routes/Booking'));
-app.use('/employees/:salonId/availability', availabilityRoutes);
+app.use(
+  '/salons/:salonId/employees/:employeeId/availability',
+  availabilityRoutes
+);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/upload', uploadRouter);
 const uri = process.env.MONGO_URI;

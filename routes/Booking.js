@@ -207,4 +207,6 @@ router.patch('/:id/cancel', async (req, res) => {
   }
 });
 
+// GET /bookings/availability?employee=EMP_ID&date=YYYY-MM-DD
+
 module.exports = router;

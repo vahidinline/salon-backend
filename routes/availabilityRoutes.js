@@ -1,39 +1,38 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const Availability = require('../models/Availability');
+const Booking = require('../models/Booking');
 
-// Get availability for employee
 router.get('/', async (req, res) => {
-  const slots = await Availability.find({
-    employee: req.params.employeeId,
-  }).populate('service');
-  res.json(slots);
-});
+  console.log('Checking booking availability with query:', req.query);
 
-// Add availability
-router.post('/', async (req, res) => {
-  const availability = new Availability({
-    ...req.body,
-    employee: req.params.employeeId,
-  });
-  await availability.save();
-  res.json(availability);
-});
+  try {
+    const { employee, date } = req.query;
 
-// Update availability
-router.put('/:id', async (req, res) => {
-  const availability = await Availability.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    { new: true }
-  );
-  res.json(availability);
-});
+    console.log('Checking availability for:', { employee, date });
 
-// Delete availability
-router.delete('/:id', async (req, res) => {
-  await Availability.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Availability deleted' });
+    if (!employee || !date) {
+      return res.status(400).json({ message: 'Missing required parameters' });
+    }
+
+    // Get start and end of the day
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    // Find confirmed or pending bookings that overlap this day
+    const bookings = await Booking.find({
+      employee,
+      start: { $gte: dayStart, $lte: dayEnd },
+      status: { $in: ['pending', 'confirmed'] },
+    }).select('start end');
+
+    res.json(bookings);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;
