@@ -10,6 +10,8 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const clientAuth = require('./routes/clientAuth.route');
+const Client = require('./routes/ClientsRoute');
+const AllAvailabilities = require('./routes/AllAvailibilities');
 const Booking = require('./models/Booking');
 const cron = require('node-cron');
 const app = express();
@@ -23,12 +25,14 @@ app.use('/auth', authRoutes);
 app.use('/salons', salonRoutes);
 app.use('/client-auth', clientAuth);
 app.use('/salons/:salonId/employees', employeeRoutes);
+app.use('/salons/:salonId/clients', Client);
 app.use('/salons/:salonId/services', serviceRoutes);
 app.use('/salons/:salonId/bookings', require('./routes/Booking'));
 app.use(
   '/salons/:salonId/employees/:employeeId/availability',
   availabilityRoutes
 );
+app.use('/availabilities', AllAvailabilities);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/upload', uploadRouter);
 const uri = process.env.MONGO_URI;
