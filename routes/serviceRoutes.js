@@ -13,6 +13,7 @@ router.get('/', async (req, res) => {
 
 // Add service
 router.post('/', async (req, res) => {
+  console.log('test');
   const service = new Service({ ...req.body, salon: req.params.salonId });
 
   console.log(' new service', service);

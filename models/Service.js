@@ -8,10 +8,13 @@ const serviceSchema = new mongoose.Schema(
       required: true,
     },
     name: { type: String, required: true },
-    duration: { type: Number, required: true }, // in minute
+    duration: { type: Number, required: true },
     description: String,
-    price: { type: Number, required: false },
+    price: { type: Number },
     employees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Employee' }],
+
+    // New field
+    serviceFeatures: [{ type: String, required: false }],
   },
   { timestamps: true }
 );

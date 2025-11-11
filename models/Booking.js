@@ -9,6 +9,7 @@ const bookingSchema = new mongoose.Schema(
       ref: 'Service',
       required: true,
     },
+    additionalService: { type: [] },
     user: { type: String },
     orderType: { type: String, default: 'self', enum: ['self', 'gift'] },
     recipientName: { type: String },
