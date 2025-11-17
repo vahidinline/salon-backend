@@ -36,6 +36,9 @@ const ClientSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    DOB: {
+      type: Date,
+    },
     ExpireDate: {
       type: Date,
     },

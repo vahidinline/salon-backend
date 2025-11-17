@@ -5,7 +5,7 @@ const User = require('../models/User');
 // Request OTP
 router.post('/request-otp', async (req, res) => {
   const { email, phone } = req.body;
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
   let user = await User.findOne({ $or: [{ email }, { phone }] });
   if (!user) {

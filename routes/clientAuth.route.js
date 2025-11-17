@@ -8,8 +8,7 @@ router.use(bodyParser.json());
 
 require('dotenv').config();
 
-const generateOTP = () =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 
 /**
  * Request OTP - Handles both new and existing users

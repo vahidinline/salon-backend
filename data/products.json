@@ -1,0 +1,181 @@
+[
+  {
+    "id": 101,
+    "name": "کفش چرم زنانه مدل C101",
+    "slug": "c101-women-shoes",
+    "permalink": "https://example.com/product/c101-women-shoes",
+    "price": "1699000",
+    "regular_price": "1699000",
+    "sale_price": "",
+    "stock_status": "instock",
+    "stock_quantity": 12,
+    "images": [{ "id": 1, "src": "https://example.com/images/c101-1.jpg" }],
+    "attributes": [
+      {
+        "id": 1,
+        "name": "رنگ",
+        "options": ["طوسی", "مشکی", "سرمه‌ای"]
+      },
+      {
+        "id": 2,
+        "name": "سایز",
+        "options": ["36", "37", "38", "39", "40"]
+      }
+    ]
+  },
+
+  {
+    "id": 102,
+    "name": "کفش اسپرت مردانه مدل M210",
+    "slug": "m210-men-sport-shoes",
+    "permalink": "https://example.com/product/m210-men-sport-shoes",
+    "price": "2290000",
+    "regular_price": "2490000",
+    "sale_price": "2290000",
+    "stock_status": "instock",
+    "stock_quantity": 25,
+    "images": [{ "id": 2, "src": "https://example.com/images/m210-1.jpg" }],
+    "attributes": [
+      {
+        "id": 1,
+        "name": "رنگ",
+        "options": ["سفید", "مشکی"]
+      },
+      {
+        "id": 2,
+        "name": "سایز",
+        "options": ["41", "42", "43", "44"]
+      }
+    ]
+  },
+
+  {
+    "id": 103,
+    "name": "صندل زنانه طرح کلاسیک",
+    "slug": "classic-sandal-women",
+    "permalink": "https://example.com/product/classic-sandal-women",
+    "price": "890000",
+    "regular_price": "990000",
+    "sale_price": "890000",
+    "stock_status": "outofstock",
+    "stock_quantity": 0,
+    "images": [{ "id": 3, "src": "https://example.com/images/sandal-1.jpg" }],
+    "attributes": [
+      {
+        "id": 1,
+        "name": "رنگ",
+        "options": ["طلایی", "مشکی"]
+      }
+    ]
+  },
+
+  {
+    "id": 104,
+    "name": "کفش مردانه چرم طبیعی مدل B500",
+    "slug": "b500-men-leather",
+    "permalink": "https://example.com/product/b500-men-leather",
+    "price": "3190000",
+    "regular_price": "3190000",
+    "sale_price": "",
+    "stock_status": "instock",
+    "stock_quantity": 7,
+    "images": [{ "id": 4, "src": "https://example.com/images/b500.jpg" }],
+    "attributes": [
+      { "name": "رنگ", "options": ["قهوه‌ای", "مشکی"] },
+      { "name": "سایز", "options": ["40", "41", "42", "43"] }
+    ]
+  },
+
+  {
+    "id": 105,
+    "name": "کفش راحتی زنانه مدل L55",
+    "slug": "l55-soft-women",
+    "price": "1490000",
+    "regular_price": "1590000",
+    "sale_price": "1490000",
+    "stock_status": "instock",
+    "stock_quantity": 19,
+    "images": [{ "id": 5, "src": "https://example.com/images/l55.jpg" }],
+    "attributes": [
+      { "name": "رنگ", "options": ["صورتی", "طوسی", "مشکی"] },
+      { "name": "سایز", "options": ["36", "37", "38", "39"] }
+    ]
+  },
+
+  {
+    "id": 106,
+    "name": "بوت زنانه ساق بلند مدل W900",
+    "slug": "w900-women-boot",
+    "price": "2890000",
+    "regular_price": "2890000",
+    "sale_price": "",
+    "stock_status": "instock",
+    "stock_quantity": 5,
+    "images": [{ "id": 6, "src": "https://example.com/images/w900.jpg" }],
+    "attributes": [
+      { "name": "رنگ", "options": ["مشکی", "قهوه‌ای"] },
+      { "name": "سایز", "options": ["37", "38", "39", "40"] }
+    ]
+  },
+
+  {
+    "id": 107,
+    "name": "کفش اسپرت بچگانه مدل K10",
+    "slug": "k10-kids-sport",
+    "price": "690000",
+    "regular_price": "690000",
+    "sale_price": "",
+    "stock_status": "instock",
+    "stock_quantity": 30,
+    "images": [{ "id": 7, "src": "https://example.com/images/k10.jpg" }],
+    "attributes": [
+      { "name": "رنگ", "options": ["آبی", "صورتی"] },
+      { "name": "سایز", "options": ["30", "31", "32", "33", "34"] }
+    ]
+  },
+
+  {
+    "id": 108,
+    "name": "دمپایی روفرشی مدل H20",
+    "slug": "h20-slippers",
+    "price": "190000",
+    "regular_price": "220000",
+    "sale_price": "190000",
+    "stock_status": "instock",
+    "stock_quantity": 40,
+    "images": [{ "id": 8, "src": "https://example.com/images/h20.jpg" }],
+    "attributes": [{ "name": "رنگ", "options": ["قرمز", "آبی", "سبز"] }]
+  },
+
+  {
+    "id": 109,
+    "name": "کتانی رانینگ حرفه‌ای مدل R77",
+    "slug": "r77-running-shoes",
+    "price": "3490000",
+    "regular_price": "3990000",
+    "sale_price": "3490000",
+    "stock_status": "instock",
+    "stock_quantity": 8,
+    "images": [{ "id": 9, "src": "https://example.com/images/r77.jpg" }],
+    "attributes": [
+      { "name": "رنگ", "options": ["نارنجی", "مشکی"] },
+      { "name": "سایز", "options": ["41", "42", "43", "44"] }
+    ]
+  },
+
+  {
+    "id": 110,
+    "name": "کفش کلاسیک مردانه مدل C700",
+    "slug": "c700-classic-men",
+    "price": "2590000",
+    "regular_price": "2590000",
+    "sale_price": "",
+    "stock_status": "outofstock",
+    "stock_quantity": 0,
+    "images": [{ "id": 10, "src": "https://example.com/images/c700.jpg" }],
+    "attributes": [
+      { "name": "رنگ", "options": ["مشکی"] },
+      { "name": "سایز", "options": ["41", "42", "43"] }
+    ]
+  }
+]

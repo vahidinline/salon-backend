@@ -9,6 +9,7 @@ router.post('/', async (req, res) => {
       salon,
       employee,
       service,
+      additionalService,
       start,
       end,
       user,
@@ -24,6 +25,7 @@ router.post('/', async (req, res) => {
       salon,
       employee,
       service,
+      additionalService,
       start,
       end,
       user,
@@ -153,6 +155,43 @@ router.patch('/:id/cancel', async (req, res) => {
     booking.cancelationReason = reason;
     booking.status = 'cancelled';
     booking.cancelationDate = new Date();
+    await booking.save();
+
+    return res.json({
+      message: 'Receipt attached and booking marked for review',
+      booking,
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ message: 'Server error', error: err.message });
+  }
+});
+
+//patch update status by admin
+
+router.patch('/:id/updatestatus', async (req, res) => {
+  console.log('test');
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    console.log('id', id, 'status', status);
+    if (!status) {
+      return res.status(400).json({ message: 'receiptUrl is required' });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // optional: disallow uploads if booking already expired / cancelled
+    // const now = new Date();
+    // if (booking.paymentDeadline && booking.paymentDeadline < now) {
+    //   return res.status(400).json({ message: 'Payment deadline has passed' });
+    // }
+
+    booking.status = status;
+
     await booking.save();
 
     return res.json({

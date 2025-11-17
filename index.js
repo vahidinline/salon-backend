@@ -13,14 +13,20 @@ const clientAuth = require('./routes/clientAuth.route');
 const Client = require('./routes/ClientsRoute');
 const AllAvailabilities = require('./routes/AllAvailibilities');
 const Booking = require('./models/Booking');
+const scrapeRouter = require('./routes/scrapeRouter');
+const conversationRouter = require('./routes/conversationRouter');
+const EmployeeAvailibility = require('./routes/employeeAvailabilityRoute');
 const cron = require('node-cron');
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(express.json({ limit: '5mb' }));
 
 app.get('/', (req, res) => res.send('updated: Oct 08 2025'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
+app.use('/api/scrape', scrapeRouter);
+app.use('/api/conversation', conversationRouter);
 app.use('/auth', authRoutes);
 app.use('/salons', salonRoutes);
 app.use('/client-auth', clientAuth);
@@ -28,12 +34,14 @@ app.use('/salons/:salonId/employees', employeeRoutes);
 app.use('/salons/:salonId/clients', Client);
 app.use('/salons/:salonId/services', serviceRoutes);
 app.use('/salons/:salonId/bookings', require('./routes/Booking'));
+app.use('/salons/:salonId/availability', availabilityRoutes);
 app.use(
   '/salons/:salonId/employees/:employeeId/availability',
-  availabilityRoutes
+  EmployeeAvailibility
 );
 app.use('/availabilities', AllAvailabilities);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 app.use('/upload', uploadRouter);
 const uri = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5001;

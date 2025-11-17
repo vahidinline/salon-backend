@@ -23,7 +23,9 @@ router.post('/', async (req, res) => {
 
 // Get single service
 router.get('/:id', async (req, res) => {
-  const service = await Service.findById(req.params.id).populate('employees');
+  const service = await Service.findById(req.params.id)
+    .populate('employees')
+    .populate('services');
   res.json(service);
 });
 
