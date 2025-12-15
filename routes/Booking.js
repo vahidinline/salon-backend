@@ -127,7 +127,6 @@ router.get('/:bookingId', async (req, res) => {
   }
 });
 
-// PATCH: تایید رزرو توسط ادمین
 router.patch('/:id/updatestatus', async (req, res) => {
   try {
     const { id } = req.params;
@@ -136,16 +135,14 @@ router.patch('/:id/updatestatus', async (req, res) => {
     const booking = await Booking.findById(id)
       .populate('service')
       .populate('employee');
-
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
     booking.status = status;
     await booking.save();
 
-    // ✅ اصلاح منطق ارسال پیام:
-    // بررسی کن کدام فیلد حاوی آیدی عددی تلگرام است
     const targetChatId = booking.telegramUserId || booking.user;
 
+    // ۱. پیام تایید نهایی همراه با آدرس
     if (status === 'confirmed' && targetChatId) {
       const dateStr = new Date(booking.start).toLocaleDateString('fa-IR');
       const timeStr = new Date(booking.start).toLocaleTimeString('fa-IR', {
@@ -155,24 +152,62 @@ router.patch('/:id/updatestatus', async (req, res) => {
 
       const message = `✅ *رزرو شما تایید شد!*
 
-💅 سرویس: ${booking.service?.name || 'خدمات زیبایی'}
-👤 متخصص: ${booking.employee?.name || 'تعیین شده'}
+💅 Service: ${booking.service?.name}
+👤 NailArtist: ${booking.employee?.name}
 📅 تاریخ: ${dateStr}
 ⏰ ساعت: ${timeStr}
 
+📍 *آدرس:*
+${SALON_ADDRESS}
+
 منتظر دیدار شما هستیم 🌸`;
 
-      // ارسال پیام
-      await sendTelegramMessage(targetChatId, message);
-      console.log(`Notification sent to ${targetChatId}`);
+      // دکمه شیشه‌ای برای لوکیشن
+      const options = {
+        reply_markup: {
+          inline_keyboard: [[{ text: '🗺 مسیریابی در گوگل مپ', url: MAP_URL }]],
+        },
+      };
+
+      await sendTelegramMessage(targetChatId, message, options);
     }
 
     return res.json({ message: 'Status updated', booking });
   } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ message: 'Server error', error: err.message });
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH: کنسل کردن دستی رزرو (توسط ادمین یا کاربر)
+router.patch('/:id/cancel', async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+
+    // جلوگیری از ارسال پیام تکراری اگر قبلا کنسل شده
+    if (booking.status === 'cancelled') {
+      return res.json({ message: 'Already cancelled', booking });
+    }
+
+    booking.status = 'cancelled';
+    booking.cancelationReason = req.body.reason || 'byUser';
+    booking.cancelationDate = new Date();
+    await booking.save();
+
+    // ۲. ارسال پیام لغو به کاربر
+    const targetChatId = booking.telegramUserId || booking.user;
+    if (targetChatId) {
+      const message = `❌ *رزرو شما لغو شد.*
+
+علت: ${booking.cancelationReason === 'byUser' ? 'درخواست شما' : 'لغو توسط سالن'}
+
+امیدواریم در فرصتی دیگر میزبان شما باشیم.`;
+      await sendTelegramMessage(targetChatId, message);
+    }
+
+    res.json({ message: 'Cancelled', booking });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -198,22 +233,6 @@ router.patch('/:id/receipt', async (req, res) => {
     }
 
     res.json({ message: 'Receipt uploaded', booking });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// PATCH: کنسل کردن رزرو
-router.patch('/:id/cancel', async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: 'Not found' });
-
-    booking.status = 'cancelled';
-    booking.cancelationReason = req.body.reason || 'byUser';
-    booking.cancelationDate = new Date();
-    await booking.save();
-    res.json({ message: 'Cancelled', booking });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
