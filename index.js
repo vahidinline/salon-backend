@@ -3,8 +3,11 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
+const cron = require('node-cron');
+
+// Routes
 const uploadRouter = require('./routes/upload');
-const authRoutes = require('./routes/adminAuthRoute');
+const authRoutes = require('./routes/authRoutes');
 const salonRoutes = require('./routes/salonRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
@@ -12,37 +15,38 @@ const availabilityRoutes = require('./routes/availabilityRoutes');
 const clientAuth = require('./routes/clientAuth.route');
 const Client = require('./routes/ClientsRoute');
 const AllAvailabilities = require('./routes/AllAvailibilities');
-const Booking = require('./models/Booking');
-const scrapeRouter = require('./routes/scrapeRouter');
-const conversationRouter = require('./routes/conversationRouter');
+const bookingRoutes = require('./routes/Booking');
 const EmployeeAvailibility = require('./routes/employeeAvailabilityRoute');
-const cron = require('node-cron');
-const app = express();
-app.use(express.json());
-app.use(cors());
-app.use(express.json({ limit: '5mb' }));
 
-app.get('/', (req, res) => res.send('updated: Oct 08 2025'));
+// Models
+const Booking = require('./models/Booking');
+
+const app = express();
+app.use(express.json({ limit: '5mb' }));
+app.use(cors());
+
+app.get('/', (req, res) => res.send('Salon System API - Core Updated'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
-app.use('/api/scrape', scrapeRouter);
-app.use('/api/conversation', conversationRouter);
+// API Routes
 app.use('/auth', authRoutes);
 app.use('/salons', salonRoutes);
 app.use('/client-auth', clientAuth);
 app.use('/salons/:salonId/employees', employeeRoutes);
 app.use('/salons/:salonId/clients', Client);
 app.use('/salons/:salonId/services', serviceRoutes);
-app.use('/salons/:salonId/bookings', require('./routes/Booking'));
+app.use('/salons/:salonId/bookings', bookingRoutes);
 app.use('/salons/:salonId/availability', availabilityRoutes);
 app.use(
   '/salons/:salonId/employees/:employeeId/availability',
   EmployeeAvailibility
 );
 app.use('/availabilities', AllAvailabilities);
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
+// Static Uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/upload', uploadRouter);
+
 const uri = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5001;
 
@@ -54,10 +58,10 @@ mongoose
   })
   .catch((err) => console.error('❌ MongoDB connection error:', err));
 
+// Auto-cancel unpaid bookings (Cron Job)
 cron.schedule('*/10 * * * *', async () => {
   try {
     const now = new Date();
-    console.log('Running auto-cancel cron job at', now);
     const result = await Booking.updateMany(
       {
         status: 'pending',
@@ -71,11 +75,8 @@ cron.schedule('*/10 * * * *', async () => {
         },
       }
     );
-
     if (result.modifiedCount > 0) {
       console.log(`⏰ Auto-cancelled ${result.modifiedCount} unpaid bookings.`);
-    } else {
-      console.log('⏰ No unpaid bookings to auto-cancel at this time.');
     }
   } catch (err) {
     console.error('Error in auto-cancel cron job:', err);

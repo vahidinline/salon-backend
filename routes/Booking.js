@@ -1,133 +1,12 @@
 const express = require('express');
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 const Booking = require('../models/Booking');
-const Client = require('../models/Clients');
-const dayjs = require('dayjs');
+const { sendTelegramMessage } = require('../services/telegramBot');
 
-// Load jalaliday dynamically for CommonJS
-let jalaliReady = false;
-(async () => {
-  const jalaliday = (await import('jalaliday')).default;
-  dayjs.extend(jalaliday);
-  jalaliReady = true;
-  console.log('✅ Jalaliday loaded in backend');
-})();
-// POST /book — create a new booking
-// router.post('/', async (req, res) => {
-//   try {
-//     const {
-//       salon,
-//       employee,
-//       service,
-//       additionalService,
-//       start,
-//       end,
-//       user,
-//       clientName,
-//       clientPhone,
-//       clientEmail,
-//       notes,
-//       dob,
-//     } = req.body;
-//     console.log('Received booking data:', req.body);
-//     let gregorianDob = null;
-
-//     if (dob) {
-//       gregorianDob = dayjs(dob, { jalali: true })
-//         .calendar('jalali')
-//         .locale('fa')
-//         .toDate(); // <-- converts to Gregorian JS Date
-//     }
-
-//     // Example: update client’s DOB
-//     await Client.findOneAndUpdate(
-//       { telegramUserId: user },
-//       { DOB: gregorianDob },
-//       { upsert: true }
-//     );
-//     // Create new booking document
-//     const booking = new Booking({
-//       salon,
-//       employee,
-//       service,
-//       additionalService,
-//       start,
-//       end,
-//       user,
-//       clientName,
-//       clientPhone,
-//       clientEmail,
-//       notes,
-//     });
-//     console.log('Created booking object:', booking);
-//     // Save to MongoDB
-//     const savedBooking = await booking.save();
-//     console.log('Saved booking to DB:', savedBooking);
-//     // Return created booking
-//     res.status(201).json({
-//       message: 'Booking created successfully',
-//       booking: savedBooking,
-//     });
-//   } catch (error) {
-//     console.error('Error creating booking:', error);
-//     res.status(500).json({ error: 'Internal server error' });
-//   }
-// });
+// POST /book — create a new booking with Overlap Check
 router.post('/', async (req, res) => {
   try {
     const {
-      salon,
-      employee,
-      service,
-      additionalService,
-      start,
-      end,
-      user, // this is telegramUserId
-      clientName,
-      clientPhone,
-      clientEmail,
-      notes,
-      dob,
-    } = req.body;
-
-    console.log('Received booking data:', req.body);
-
-    // -----------------------------
-    // 1. Convert JALALI DOB → Gregorian
-    // -----------------------------
-    let gregorianDob = null;
-
-    if (dob) {
-      gregorianDob = dayjs(dob, { jalali: true })
-        .calendar('jalali')
-        .locale('fa')
-        .toDate();
-    }
-
-    // -----------------------------
-    // 2. Fetch client info
-    // -----------------------------
-    const client = await Client.findOneAndUpdate(
-      { telegramUserId: user },
-      { DOB: gregorianDob },
-      { upsert: true, new: true } // return updated/new client
-    );
-
-    // -----------------------------
-    // 3. Determine booking status based on clientType
-    // -----------------------------
-    let bookingStatus = 'pending';
-
-    const autoConfirmTypes = ['vip', 'vvip', 'influencer'];
-
-    if (client && autoConfirmTypes.includes(client.clientType)) {
-      bookingStatus = 'confirmed';
-    }
-
-    // -----------------------------
-    // 4. Create new booking
-    // -----------------------------
-    const booking = new Booking({
       salon,
       employee,
       service,
@@ -139,16 +18,54 @@ router.post('/', async (req, res) => {
       clientPhone,
       clientEmail,
       notes,
-      status: bookingStatus, // <-- APPLYING LOGIC
+      orderType,
+      recipientName,
+    } = req.body;
+
+    console.log('Creating booking:', { employee, start, end });
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    // 1. Check for overlapping bookings
+    // We look for any booking for this employee that is NOT cancelled
+    // and overlaps with the requested time window.
+    const conflict = await Booking.findOne({
+      employee,
+      status: { $in: ['pending', 'confirmed', 'paid', 'review'] },
+      $or: [
+        { start: { $lt: endDate, $gte: startDate } }, // Starts inside requested
+        { end: { $gt: startDate, $lte: endDate } }, // Ends inside requested
+        { start: { $lte: startDate }, end: { $gte: endDate } }, // Encompasses requested
+      ],
     });
 
-    console.log('Created booking object:', booking);
+    if (conflict) {
+      return res.status(409).json({
+        message: 'این زمان قبلاً رزرو شده است.',
+        conflictId: conflict._id,
+      });
+    }
 
-    // -----------------------------
-    // 5. Save to MongoDB
-    // -----------------------------
+    // 2. Create Booking
+    const booking = new Booking({
+      salon,
+      employee,
+      service,
+      additionalService,
+      start: startDate,
+      end: endDate,
+      user,
+      clientName,
+      clientPhone,
+      clientEmail,
+      notes,
+      orderType,
+      recipientName,
+    });
+
     const savedBooking = await booking.save();
-    console.log('Saved booking to DB:', savedBooking);
+    console.log('✅ Booking saved:', savedBooking._id);
 
     res.status(201).json({
       message: 'Booking created successfully',
@@ -160,153 +77,115 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ... (Rest of the GET/PATCH routes remain mostly the same, just ensure they are clean)
+
 router.get('/', async (req, res) => {
   try {
-    const { salonId, user } = req.query;
+    const { salonId } = req.params; // from mergeParams if setup, or query
+    const { user } = req.query;
 
-    // if (!salonId) {
-    //   return res.status(400).json({ message: 'salonId is required' });
-    // }
+    // Fallback if salonId not in params but in query (legacy support)
+    const sId = salonId || req.query.salonId;
 
-    const filter = { salon: salonId };
+    const filter = {};
+    if (sId) filter.salon = sId;
+    if (user && user !== 'undefined') filter.user = user;
 
-    if (user && user !== 'undefined') {
-      filter.user = user.toString();
-    }
-
-    console.log('🧾 Final filter:', filter);
-
-    // Populate only the `name` field for employee and service
     const bookings = await Booking.find(filter)
       .populate('employee', 'name')
       .populate('service', 'name')
       .sort({ createdAt: -1 })
       .lean();
 
-    // 🪄 Replace populated objects with their name strings
     const formatted = bookings.map((b) => ({
       ...b,
       employee: b.employee?.name || null,
       service: b.service?.name || null,
     }));
 
-    console.log('✅ Found bookings:', formatted.length);
-
     res.json(formatted);
   } catch (error) {
-    console.error('❌ Error fetching bookings:', error);
-    res.status(500).json({ message: 'Server error', error });
+    console.error('Error fetching bookings:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
 router.get('/:bookingId', async (req, res) => {
   try {
-    const { bookingId } = req.params;
-
-    const booking = await Booking.findById(bookingId);
-    console.log('booking found', booking);
-
+    const booking = await Booking.findById(req.params.bookingId)
+      .populate('service')
+      .populate('employee');
     res.json(booking);
   } catch (error) {
-    console.error('Error fetching bookings:', error);
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-router.patch('/:id/receipt', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { receiptUrl } = req.body;
-    if (!receiptUrl) {
-      return res.status(400).json({ message: 'receiptUrl is required' });
-    }
+// router.patch('/:id/receipt', async (req, res) => {
+//   try {
+//     const booking = await Booking.findById(req.params.id);
+//     if (!booking) return res.status(404).json({ message: 'Not found' });
 
-    const booking = await Booking.findById(id);
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-
-    // optional: disallow uploads if booking already expired / cancelled
-    const now = new Date();
-    if (booking.paymentDeadline && booking.paymentDeadline < now) {
-      return res.status(400).json({ message: 'Payment deadline has passed' });
-    }
-
-    booking.receiptUrl = receiptUrl;
-    booking.status = 'review'; // mark for manual review
-    await booking.save();
-
-    return res.json({
-      message: 'Receipt attached and booking marked for review',
-      booking,
-    });
-  } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ message: 'Server error', error: err.message });
-  }
-});
+//     booking.receiptUrl = req.body.receiptUrl;
+//     booking.status = 'review';
+//     await booking.save();
+//     res.json({ message: 'Receipt uploaded', booking });
+//   } catch (err) {
+//     res.status(500).json({ message: err.message });
+//   }
+// });
 
 router.patch('/:id/cancel', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { reason } = req.body;
-    if (!reason) {
-      return res.status(400).json({ message: 'receiptUrl is required' });
-    }
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Not found' });
 
-    const booking = await Booking.findById(id);
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-
-    // optional: disallow uploads if booking already expired / cancelled
-    // const now = new Date();
-    // if (booking.paymentDeadline && booking.paymentDeadline < now) {
-    //   return res.status(400).json({ message: 'Payment deadline has passed' });
-    // }
-
-    booking.cancelationReason = reason;
     booking.status = 'cancelled';
+    booking.cancelationReason = req.body.reason || 'byUser';
     booking.cancelationDate = new Date();
     await booking.save();
-
-    return res.json({
-      message: 'Receipt attached and booking marked for review',
-      booking,
-    });
+    res.json({ message: 'Cancelled', booking });
   } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ message: 'Server error', error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
-
-//patch update status by admin
-
 router.patch('/:id/updatestatus', async (req, res) => {
-  console.log('test');
   try {
     const { id } = req.params;
     const { status } = req.body;
-    console.log('id', id, 'status', status);
-    if (!status) {
-      return res.status(400).json({ message: 'receiptUrl is required' });
-    }
 
-    const booking = await Booking.findById(id);
+    // واکشی رزرو به همراه اطلاعات سرویس و کارمند برای ساخت متن پیام جذاب
+    const booking = await Booking.findById(id)
+      .populate('service')
+      .populate('employee');
+
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    // optional: disallow uploads if booking already expired / cancelled
-    // const now = new Date();
-    // if (booking.paymentDeadline && booking.paymentDeadline < now) {
-    //   return res.status(400).json({ message: 'Payment deadline has passed' });
-    // }
-
     booking.status = status;
-
     await booking.save();
 
+    // ۲. ارسال نوتیفیکیشن به کاربر در صورت تایید شدن
+    if (status === 'confirmed' && booking.telegramUserId) {
+      const dateStr = new Date(booking.start).toLocaleDateString('fa-IR');
+      const timeStr = new Date(booking.start).toLocaleTimeString('fa-IR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const message = `✅ *رزرو شما تایید شد!*
+
+💅 سرویس: ${booking.service?.name || 'خدمات زیبایی'}
+👤 متخصص: ${booking.employee?.name || 'تعیین شده'}
+📅 تاریخ: ${dateStr}
+⏰ ساعت: ${timeStr}
+
+منتظر دیدار شما هستیم 🌸`;
+
+      await sendTelegramMessage(booking.telegramUserId, message);
+    }
+
     return res.json({
-      message: 'Receipt attached and booking marked for review',
+      message: 'Status updated and notification sent',
       booking,
     });
   } catch (err) {
@@ -317,6 +196,30 @@ router.patch('/:id/updatestatus', async (req, res) => {
   }
 });
 
-// GET /bookings/availability?employee=EMP_ID&date=YYYY-MM-DD
+// آپلود رسید توسط کاربر
+router.patch('/:id/receipt', async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+
+    booking.receiptUrl = req.body.receiptUrl;
+    booking.status = 'review'; // تغییر وضعیت به "در حال بررسی"
+    await booking.save();
+
+    // ۳. ارسال پیام "دریافت شد" به کاربر
+    if (booking.telegramUserId) {
+      const message = `📥 *رسید پرداخت شما دریافت شد.*
+
+وضعیت رزرو: 🟡 در حال بررسی
+پس از تایید ادمین، رزرو شما نهایی خواهد شد.`;
+
+      await sendTelegramMessage(booking.telegramUserId, message);
+    }
+
+    res.json({ message: 'Receipt uploaded', booking });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 module.exports = router;

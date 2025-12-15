@@ -21,6 +21,7 @@
     "mongoose": "^8.18.1",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
+    "node-telegram-bot-api": "^0.67.0",
     "nodemon": "^3.1.10",
     "puppeteer": "^24.30.0"
   }

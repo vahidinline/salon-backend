@@ -1,164 +1,105 @@
-// controllers/availabilityController.js
 const dayjs = require('dayjs');
 const Employee = require('../models/Employee');
-const Reservation = require('../models/reservations');
+const Booking = require('../models/Booking');
 
-exports.getWeekAvailability = async (req, res) => {
-  try {
-    const { startOfWeek } = req.query;
-    const start = dayjs(startOfWeek).startOf('day');
-    const end = start.add(6, 'day').endOf('day');
+// Helper to check if a day has ANY free slot larger than minDuration
+const hasFreeTimeInDay = (
+  employee,
+  dateStr,
+  bookings,
+  minDurationMinutes = 15
+) => {
+  const weekday = dayjs(dateStr).format('dddd').toLowerCase();
 
-    const employees = await Employee.find({ status: 'active' });
+  // Find work schedule for this specific weekday
+  const workSchedule = employee.workSchedule.find(
+    (ws) => ws.day.toLowerCase() === weekday
+  );
 
-    const days = {};
-    for (let i = 0; i < 7; i++) {
-      const day = start.add(i, 'day');
-      const weekday = day.format('dddd').toLowerCase();
+  if (!workSchedule) return false;
 
-      // employees working on that day
-      const workingEmployees = employees.filter((e) =>
-        e.workSchedule.some((ws) => ws.day.toLowerCase().includes(weekday))
-      );
+  // Define Work Start/End
+  const workStart = dayjs(`${dateStr} ${workSchedule.startTime}`);
+  const workEnd = dayjs(`${dateStr} ${workSchedule.endTime}`);
 
-      let slotCount = 0;
+  // Sort bookings by start time
+  const sortedBookings = bookings.sort(
+    (a, b) => new Date(a.start) - new Date(b.start)
+  );
 
-      for (const emp of workingEmployees) {
-        const reservations = await Reservation.find({
-          employee: emp._id,
-          preferredDatetime: {
-            $gte: day.startOf('day').toDate(),
-            $lte: day.endOf('day').toDate(),
-          },
-          status: { $in: ['pending', 'confirmed'] },
-        });
+  let lastEndTime = workStart;
 
-        const bookedTimes = reservations.map((r) =>
-          dayjs(r.preferredDatetime).format('HH:mm')
-        );
+  // Iterate through bookings to find gaps
+  for (const booking of sortedBookings) {
+    const bookingStart = dayjs(booking.start);
+    const bookingEnd = dayjs(booking.end);
 
-        emp.workSchedule
-          .filter((ws) => ws.day.toLowerCase().includes(weekday))
-          .forEach((ws) => {
-            const startT = dayjs(`${day.format('YYYY-MM-DD')} ${ws.startTime}`);
-            const endT = dayjs(`${day.format('YYYY-MM-DD')} ${ws.endTime}`);
-            let current = startT;
+    // Calculate gap in minutes
+    const diff = bookingStart.diff(lastEndTime, 'minute');
 
-            while (current.isBefore(endT)) {
-              const timeStr = current.format('HH:mm');
-              if (!bookedTimes.includes(timeStr)) slotCount++;
-              current = current.add(30, 'minute'); // 30 min granularity
-            }
-          });
-      }
-
-      days[day.format('YYYY-MM-DD')] = {
-        hasFreeSlot: slotCount > 0,
-        slotCount,
-      };
+    // If gap is enough for minimum service
+    if (diff >= minDurationMinutes) {
+      return true;
     }
 
-    res.json(days);
-  } catch (error) {
-    console.error('Week Availability Error:', error);
-    res.status(500).json({ message: 'Failed to get week availability' });
+    // Move cursor, ensuring we don't go backwards (in case of overlapping logic errors)
+    if (bookingEnd.isAfter(lastEndTime)) {
+      lastEndTime = bookingEnd;
+    }
   }
+
+  // Check final gap (Last Booking -> End of Day)
+  const finalDiff = workEnd.diff(lastEndTime, 'minute');
+  if (finalDiff >= minDurationMinutes) {
+    return true;
+  }
+
+  return false;
 };
 
-exports.getDayAvailability = async (req, res) => {
+exports.getDailyAvailabilityStatus = async (req, res) => {
   try {
     const { date } = req.query;
-    const day = dayjs(date).startOf('day');
-    const weekday = day.format('dddd').toLowerCase();
+    const { salonId } = req.params;
 
-    const employees = await Employee.find({ status: 'active' });
-    const slotsMap = {};
-
-    for (const emp of employees) {
-      const workDay = emp.workSchedule.find((ws) =>
-        ws.day.toLowerCase().includes(weekday)
-      );
-      if (!workDay) continue;
-
-      const reservations = await Reservation.find({
-        employee: emp._id,
-        preferredDatetime: {
-          $gte: day.toDate(),
-          $lte: day.endOf('day').toDate(),
-        },
-        status: { $in: ['pending', 'confirmed'] },
-      });
-
-      const bookedTimes = reservations.map((r) =>
-        dayjs(r.preferredDatetime).format('HH:mm')
-      );
-
-      let current = dayjs(`${date} ${workDay.startTime}`);
-      const endT = dayjs(`${date} ${workDay.endTime}`);
-
-      while (current.isBefore(endT)) {
-        const timeStr = current.format('HH:mm');
-        if (!bookedTimes.includes(timeStr)) {
-          if (!slotsMap[timeStr]) slotsMap[timeStr] = [];
-          slotsMap[timeStr].push(emp._id);
-        }
-        current = current.add(30, 'minute');
-      }
+    if (!salonId || !date) {
+      return res.status(400).json({ message: 'salonId and date are required' });
     }
 
-    const slots = Object.keys(slotsMap).map((time) => ({
-      time,
-      availableEmployees: slotsMap[time],
-    }));
+    // Define day range
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
 
-    res.json(slots);
-  } catch (error) {
-    console.error('Day Availability Error:', error);
-    res.status(500).json({ message: 'Failed to get day availability' });
-  }
-};
-
-exports.getEmployeesForSlot = async (req, res) => {
-  try {
-    const { date, time } = req.query;
-    const dateTime = dayjs(`${date} ${time}`);
-
-    const weekday = dateTime.format('dddd').toLowerCase();
-    const employees = await Employee.find({ status: 'active' }).populate(
+    // 1. Fetch Employees
+    const employees = await Employee.find({ salon: salonId }).populate(
       'services'
     );
 
-    const available = [];
+    const results = [];
 
     for (const emp of employees) {
-      const workDay = emp.workSchedule.find((ws) =>
-        ws.day.toLowerCase().includes(weekday)
-      );
-      if (!workDay) continue;
-
-      const start = dayjs(`${date} ${workDay.startTime}`);
-      const end = dayjs(`${date} ${workDay.endTime}`);
-      if (!dateTime.isBetween(start, end, null, '[)')) continue;
-
-      const conflict = await Reservation.findOne({
+      // 2. Fetch CONFIRMED or PENDING bookings for this employee on this day
+      // Note: We ignore cancelled/expired/rejected bookings to show them as free
+      const bookings = await Booking.find({
         employee: emp._id,
-        preferredDatetime: dateTime.toDate(),
-        status: { $in: ['pending', 'confirmed'] },
-      });
+        start: { $gte: dayStart, $lte: dayEnd },
+        status: { $in: ['pending', 'confirmed', 'paid', 'review'] },
+      }).select('start end');
 
-      if (!conflict) {
-        available.push({
-          _id: emp._id,
-          name: emp.name,
-          avatar: emp.avatar,
-          services: emp.services,
-        });
-      }
+      // 3. Calculate Logic
+      const isFree = hasFreeTimeInDay(emp, date, bookings);
+
+      results.push({
+        employee: emp,
+        hasFreeSlot: isFree,
+      });
     }
 
-    res.json(available);
+    res.json(results);
   } catch (error) {
-    console.error('Employee Slot Error:', error);
-    res.status(500).json({ message: 'Failed to get employees for slot' });
+    console.error('Availability Error:', error);
+    res.status(500).json({ message: 'Failed to calculate availability' });
   }
 };
