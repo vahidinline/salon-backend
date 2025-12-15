@@ -3,7 +3,7 @@ const router = express.Router({ mergeParams: true });
 const Booking = require('../models/Booking');
 const { sendTelegramMessage } = require('../services/telegramBot');
 
-// POST /book — create a new booking with Overlap Check
+// POST: ثبت رزرو
 router.post('/', async (req, res) => {
   try {
     const {
@@ -13,49 +13,47 @@ router.post('/', async (req, res) => {
       additionalService,
       start,
       end,
-      user,
+      user, // این معمولا همان آیدی تلگرام است که از فرانت می آید
       clientName,
       clientPhone,
       clientEmail,
       notes,
       orderType,
       recipientName,
+      telegramUserId, // ممکن است فرانت این را هم بفرستد
     } = req.body;
-
-    console.log('Creating booking:', { employee, start, end });
 
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // 1. Check for overlapping bookings
-    // We look for any booking for this employee that is NOT cancelled
-    // and overlaps with the requested time window.
+    // بررسی تداخل زمانی
     const conflict = await Booking.findOne({
       employee,
       status: { $in: ['pending', 'confirmed', 'paid', 'review'] },
       $or: [
-        { start: { $lt: endDate, $gte: startDate } }, // Starts inside requested
-        { end: { $gt: startDate, $lte: endDate } }, // Ends inside requested
-        { start: { $lte: startDate }, end: { $gte: endDate } }, // Encompasses requested
+        { start: { $lt: endDate, $gte: startDate } },
+        { end: { $gt: startDate, $lte: endDate } },
+        { start: { $lte: startDate }, end: { $gte: endDate } },
       ],
     });
 
     if (conflict) {
       return res.status(409).json({
-        message: 'این زمان قبلاً رزرو شده است.',
+        message: 'متاسفانه این زمان قبلاً رزرو شده است.',
         conflictId: conflict._id,
       });
     }
 
-    // 2. Create Booking
+    // ذخیره رزرو
     const booking = new Booking({
-      salon,
+      salon, // حتما باید مقدار داشته باشد
       employee,
       service,
       additionalService,
       start: startDate,
       end: endDate,
       user,
+      telegramUserId: telegramUserId || user, // اگر telegramUserId نبود از user استفاده کن
       clientName,
       clientPhone,
       clientEmail,
@@ -67,6 +65,8 @@ router.post('/', async (req, res) => {
     const savedBooking = await booking.save();
     console.log('✅ Booking saved:', savedBooking._id);
 
+    // (اختیاری) ارسال پیام به ادمین در اینجا
+
     res.status(201).json({
       message: 'Booking created successfully',
       booking: savedBooking,
@@ -77,19 +77,23 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ... (Rest of the GET/PATCH routes remain mostly the same, just ensure they are clean)
-
+// GET: دریافت لیست رزروها
 router.get('/', async (req, res) => {
   try {
-    const { salonId } = req.params; // from mergeParams if setup, or query
+    const { salonId } = req.params;
     const { user } = req.query;
 
-    // Fallback if salonId not in params but in query (legacy support)
+    // اگر salonId در URL نبود، از کوئری بگیر
     const sId = salonId || req.query.salonId;
 
     const filter = {};
+
+    // فقط اگر sId وجود داشت فیلتر کن، وگرنه همه را بیاور (برای دیباگ)
     if (sId) filter.salon = sId;
+
     if (user && user !== 'undefined') filter.user = user;
+
+    console.log('🔎 Booking Filter:', filter); // لاگ برای بررسی فیلتر
 
     const bookings = await Booking.find(filter)
       .populate('employee', 'name')
@@ -97,6 +101,7 @@ router.get('/', async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    // فرمت‌دهی برای نمایش در فرانت
     const formatted = bookings.map((b) => ({
       ...b,
       employee: b.employee?.name || null,
@@ -105,11 +110,12 @@ router.get('/', async (req, res) => {
 
     res.json(formatted);
   } catch (error) {
-    console.error('Error fetching bookings:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get Booking Error', error);
+    res.status(500).json({ message: 'Server error', error });
   }
 });
 
+// GET Single Booking
 router.get('/:bookingId', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId)
@@ -121,40 +127,12 @@ router.get('/:bookingId', async (req, res) => {
   }
 });
 
-// router.patch('/:id/receipt', async (req, res) => {
-//   try {
-//     const booking = await Booking.findById(req.params.id);
-//     if (!booking) return res.status(404).json({ message: 'Not found' });
-
-//     booking.receiptUrl = req.body.receiptUrl;
-//     booking.status = 'review';
-//     await booking.save();
-//     res.json({ message: 'Receipt uploaded', booking });
-//   } catch (err) {
-//     res.status(500).json({ message: err.message });
-//   }
-// });
-
-router.patch('/:id/cancel', async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: 'Not found' });
-
-    booking.status = 'cancelled';
-    booking.cancelationReason = req.body.reason || 'byUser';
-    booking.cancelationDate = new Date();
-    await booking.save();
-    res.json({ message: 'Cancelled', booking });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+// PATCH: تایید رزرو توسط ادمین
 router.patch('/:id/updatestatus', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    // واکشی رزرو به همراه اطلاعات سرویس و کارمند برای ساخت متن پیام جذاب
     const booking = await Booking.findById(id)
       .populate('service')
       .populate('employee');
@@ -164,8 +142,11 @@ router.patch('/:id/updatestatus', async (req, res) => {
     booking.status = status;
     await booking.save();
 
-    // ۲. ارسال نوتیفیکیشن به کاربر در صورت تایید شدن
-    if (status === 'confirmed' && booking.telegramUserId) {
+    // ✅ اصلاح منطق ارسال پیام:
+    // بررسی کن کدام فیلد حاوی آیدی عددی تلگرام است
+    const targetChatId = booking.telegramUserId || booking.user;
+
+    if (status === 'confirmed' && targetChatId) {
       const dateStr = new Date(booking.start).toLocaleDateString('fa-IR');
       const timeStr = new Date(booking.start).toLocaleTimeString('fa-IR', {
         hour: '2-digit',
@@ -181,13 +162,12 @@ router.patch('/:id/updatestatus', async (req, res) => {
 
 منتظر دیدار شما هستیم 🌸`;
 
-      await sendTelegramMessage(booking.telegramUserId, message);
+      // ارسال پیام
+      await sendTelegramMessage(targetChatId, message);
+      console.log(`Notification sent to ${targetChatId}`);
     }
 
-    return res.json({
-      message: 'Status updated and notification sent',
-      booking,
-    });
+    return res.json({ message: 'Status updated', booking });
   } catch (err) {
     console.error(err);
     return res
@@ -196,27 +176,44 @@ router.patch('/:id/updatestatus', async (req, res) => {
   }
 });
 
-// آپلود رسید توسط کاربر
+// PATCH: آپلود رسید توسط کاربر
 router.patch('/:id/receipt', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Not found' });
 
     booking.receiptUrl = req.body.receiptUrl;
-    booking.status = 'review'; // تغییر وضعیت به "در حال بررسی"
+    booking.status = 'review';
     await booking.save();
 
-    // ۳. ارسال پیام "دریافت شد" به کاربر
-    if (booking.telegramUserId) {
+    const targetChatId = booking.telegramUserId || booking.user;
+
+    if (targetChatId) {
       const message = `📥 *رسید پرداخت شما دریافت شد.*
 
 وضعیت رزرو: 🟡 در حال بررسی
 پس از تایید ادمین، رزرو شما نهایی خواهد شد.`;
 
-      await sendTelegramMessage(booking.telegramUserId, message);
+      await sendTelegramMessage(targetChatId, message);
     }
 
     res.json({ message: 'Receipt uploaded', booking });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH: کنسل کردن رزرو
+router.patch('/:id/cancel', async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+
+    booking.status = 'cancelled';
+    booking.cancelationReason = req.body.reason || 'byUser';
+    booking.cancelationDate = new Date();
+    await booking.save();
+    res.json({ message: 'Cancelled', booking });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

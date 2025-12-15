@@ -2,7 +2,11 @@ const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema(
   {
-    salon: { type: mongoose.Schema.Types.ObjectId, ref: 'Salon' },
+    salon: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Salon',
+      required: true,
+    }, // اجباری شد
     employee: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
     service: {
       type: mongoose.Schema.Types.ObjectId,
@@ -10,17 +14,15 @@ const bookingSchema = new mongoose.Schema(
       required: true,
     },
     additionalService: { type: [] },
+
+    // فیلد User برای ذخیره آی‌دی کاربر (برای فیلتر کردن)
     user: { type: String },
+
+    // فیلد جدید برای اطمینان از ارسال پیام
+    telegramUserId: { type: String },
+
     orderType: { type: String, default: 'self', enum: ['self', 'gift'] },
     recipientName: { type: String },
-    clientType: { type: String },
-    clientScore: { type: String },
-    cancelationDate: { type: Date },
-    cancelationReason: {
-      type: String,
-      enum: ['byUser', 'bySalon', 'unPaid', 'conflictingSchedule'],
-    },
-    expireAt: { type: Date, default: Date.now() + 1 },
     clientName: { type: String, required: true },
     clientPhone: { type: String },
     clientEmail: { type: String },
@@ -47,14 +49,18 @@ const bookingSchema = new mongoose.Schema(
     notes: { type: String },
     paymentDeadline: { type: Date },
     receiptUrl: { type: String },
+    cancelationReason: {
+      type: String,
+      enum: ['byUser', 'bySalon', 'unPaid', 'conflictingSchedule'],
+    },
+    cancelationDate: { type: Date },
   },
   { timestamps: true }
 );
 
-// Automatically set paymentDeadline when booking is created
 bookingSchema.pre('save', function (next) {
   if (!this.paymentDeadline) {
-    this.paymentDeadline = new Date(Date.now() + 60 * 60 * 1000); // +1 hour
+    this.paymentDeadline = new Date(Date.now() + 60 * 60 * 1000);
   }
   next();
 });
