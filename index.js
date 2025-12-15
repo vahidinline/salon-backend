@@ -25,7 +25,7 @@ const app = express();
 app.use(express.json({ limit: '5mb' }));
 app.use(cors());
 
-app.get('/', (req, res) => res.send('Salon System API - Core Updated'));
+app.get('/', (req, res) => res.send('Salon System API - Core Updated --'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // API Routes
