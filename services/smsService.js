@@ -3,7 +3,7 @@ const axios = require('axios');
 async function sendOtp(bodyId, to, variables) {
   const username = '9122270114';
   const password = '8!9HP';
-
+  console.log('states in sms service', bodyId, to, variables);
   const varsArray = Array.isArray(variables) ? variables : [variables];
   const textStrings = varsArray.map((v) => `<string>${v}</string>`).join('');
 

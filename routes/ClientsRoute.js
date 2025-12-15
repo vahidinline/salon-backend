@@ -131,4 +131,41 @@ router.post('/:employeeId/book', async (req, res) => {
   res.json(availability);
 });
 
+router.patch('/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const updates = req.body;
+
+    // Allow only specific fields
+    const allowedFields = ['status', 'clientType', 'name', 'phone', 'email'];
+    const invalidFields = Object.keys(updates).filter(
+      (key) => !allowedFields.includes(key)
+    );
+
+    if (invalidFields.length > 0) {
+      return res.status(400).json({
+        error: `Invalid fields: ${invalidFields.join(', ')}`,
+      });
+    }
+
+    const client = await Client.findByIdAndUpdate(
+      clientId,
+      { $set: updates },
+      { new: true }
+    );
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    res.json({
+      message: 'Client updated successfully',
+      client,
+    });
+  } catch (error) {
+    console.error('Error updating client:', error);
+    res.status(500).json({ error: 'Server error while updating client' });
+  }
+});
+
 module.exports = router;

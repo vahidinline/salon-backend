@@ -1,8 +1,78 @@
 const express = require('express');
 const router = express.Router();
-const Booking = require('../models/Booking'); // adjust path as needed
+const Booking = require('../models/Booking');
+const Client = require('../models/Clients');
+const dayjs = require('dayjs');
 
+// Load jalaliday dynamically for CommonJS
+let jalaliReady = false;
+(async () => {
+  const jalaliday = (await import('jalaliday')).default;
+  dayjs.extend(jalaliday);
+  jalaliReady = true;
+  console.log('✅ Jalaliday loaded in backend');
+})();
 // POST /book — create a new booking
+// router.post('/', async (req, res) => {
+//   try {
+//     const {
+//       salon,
+//       employee,
+//       service,
+//       additionalService,
+//       start,
+//       end,
+//       user,
+//       clientName,
+//       clientPhone,
+//       clientEmail,
+//       notes,
+//       dob,
+//     } = req.body;
+//     console.log('Received booking data:', req.body);
+//     let gregorianDob = null;
+
+//     if (dob) {
+//       gregorianDob = dayjs(dob, { jalali: true })
+//         .calendar('jalali')
+//         .locale('fa')
+//         .toDate(); // <-- converts to Gregorian JS Date
+//     }
+
+//     // Example: update client’s DOB
+//     await Client.findOneAndUpdate(
+//       { telegramUserId: user },
+//       { DOB: gregorianDob },
+//       { upsert: true }
+//     );
+//     // Create new booking document
+//     const booking = new Booking({
+//       salon,
+//       employee,
+//       service,
+//       additionalService,
+//       start,
+//       end,
+//       user,
+//       clientName,
+//       clientPhone,
+//       clientEmail,
+//       notes,
+//     });
+//     console.log('Created booking object:', booking);
+//     // Save to MongoDB
+//     const savedBooking = await booking.save();
+//     console.log('Saved booking to DB:', savedBooking);
+//     // Return created booking
+//     res.status(201).json({
+//       message: 'Booking created successfully',
+//       booking: savedBooking,
+//     });
+//   } catch (error) {
+//     console.error('Error creating booking:', error);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
 router.post('/', async (req, res) => {
   try {
     const {
@@ -12,15 +82,51 @@ router.post('/', async (req, res) => {
       additionalService,
       start,
       end,
-      user,
+      user, // this is telegramUserId
       clientName,
       clientPhone,
       clientEmail,
       notes,
+      dob,
     } = req.body;
+
     console.log('Received booking data:', req.body);
 
-    // Create new booking document
+    // -----------------------------
+    // 1. Convert JALALI DOB → Gregorian
+    // -----------------------------
+    let gregorianDob = null;
+
+    if (dob) {
+      gregorianDob = dayjs(dob, { jalali: true })
+        .calendar('jalali')
+        .locale('fa')
+        .toDate();
+    }
+
+    // -----------------------------
+    // 2. Fetch client info
+    // -----------------------------
+    const client = await Client.findOneAndUpdate(
+      { telegramUserId: user },
+      { DOB: gregorianDob },
+      { upsert: true, new: true } // return updated/new client
+    );
+
+    // -----------------------------
+    // 3. Determine booking status based on clientType
+    // -----------------------------
+    let bookingStatus = 'pending';
+
+    const autoConfirmTypes = ['vip', 'vvip', 'influencer'];
+
+    if (client && autoConfirmTypes.includes(client.clientType)) {
+      bookingStatus = 'confirmed';
+    }
+
+    // -----------------------------
+    // 4. Create new booking
+    // -----------------------------
     const booking = new Booking({
       salon,
       employee,
@@ -33,12 +139,17 @@ router.post('/', async (req, res) => {
       clientPhone,
       clientEmail,
       notes,
+      status: bookingStatus, // <-- APPLYING LOGIC
     });
+
     console.log('Created booking object:', booking);
-    // Save to MongoDB
+
+    // -----------------------------
+    // 5. Save to MongoDB
+    // -----------------------------
     const savedBooking = await booking.save();
     console.log('Saved booking to DB:', savedBooking);
-    // Return created booking
+
     res.status(201).json({
       message: 'Booking created successfully',
       booking: savedBooking,
