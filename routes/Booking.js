@@ -3,9 +3,27 @@ const router = express.Router({ mergeParams: true });
 const Booking = require('../models/Booking');
 const { sendTelegramMessage } = require('../services/telegramBot');
 
-// تنظیمات ثابت آدرس
 const SALON_ADDRESS = 'الهیه، خزر شمالی، بالاتر از کوچه مرجان، پلاک ۲۰';
 const MAP_URL = 'https://maps.app.goo.gl/wf41mQ58a4BwsWqN6';
+
+// Helper function to format date/time to Tehran Timezone
+const formatTehranDate = (date) => {
+  return new Date(date).toLocaleDateString('fa-IR', {
+    timeZone: 'Asia/Tehran',
+    year: 'numeric',
+    month: 'numeric', // یا 'long' برای نام ماه
+    day: 'numeric',
+  });
+};
+
+const formatTehranTime = (date) => {
+  return new Date(date).toLocaleTimeString('fa-IR', {
+    timeZone: 'Asia/Tehran',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false, // نمایش ۲۴ ساعته (مثلا 14:30) یا true برای ب.ظ
+  });
+};
 
 // --------------------------------------------------------
 // POST: ثبت رزرو جدید
@@ -29,13 +47,11 @@ router.post('/', async (req, res) => {
       telegramUserId,
     } = req.body;
 
-    // اگر سالن در بادی نبود، از پارامتر URL بگیر
     const finalSalonId = salon || req.params.salonId;
-
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // چک تداخل زمانی
+    // چک تداخل
     const conflict = await Booking.findOne({
       employee,
       status: { $in: ['pending', 'confirmed', 'paid', 'review'] },
@@ -61,7 +77,7 @@ router.post('/', async (req, res) => {
       start: startDate,
       end: endDate,
       user,
-      telegramUserId: telegramUserId || user, // ذخیره آیدی تلگرام برای نوتیفیکیشن
+      telegramUserId: telegramUserId || user,
       clientName,
       clientPhone,
       clientEmail,
@@ -125,14 +141,13 @@ router.get('/:bookingId', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// PATCH: آپدیت وضعیت (توسط ادمین) -> تایید یا لغو
+// PATCH: آپدیت وضعیت (توسط ادمین)
 // --------------------------------------------------------
 router.patch('/:id/updatestatus', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    // حتما populate میکنیم تا اسم سرویس و کارمند برای پیامک در دسترس باشد
     const booking = await Booking.findById(id)
       .populate('service')
       .populate('employee');
@@ -141,7 +156,6 @@ router.patch('/:id/updatestatus', async (req, res) => {
 
     booking.status = status;
 
-    // اگر ادمین کنسل کرد و دلیلی ثبت نشده بود، دلیل را "توسط سالن" ثبت کن
     if (status === 'cancelled' && !booking.cancelationReason) {
       booking.cancelationReason = 'bySalon';
       booking.cancelationDate = new Date();
@@ -149,25 +163,19 @@ router.patch('/:id/updatestatus', async (req, res) => {
 
     await booking.save();
 
-    // --- لاجیک ارسال پیام تلگرام ---
-    // اولویت با telegramUserId است، اگر نبود user
     const targetChatId = booking.telegramUserId || booking.user;
 
-    console.log(`🔄 Status Update: ${status} | ChatID: ${targetChatId}`);
-
     if (targetChatId) {
-      // ۱. حالت تایید شده
+      // ۱. پیام تایید (با ساعت اصلاح شده)
       if (status === 'confirmed') {
-        const dateStr = new Date(booking.start).toLocaleDateString('fa-IR');
-        const timeStr = new Date(booking.start).toLocaleTimeString('fa-IR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        // استفاده از توابع کمکی با تایم‌زون تهران
+        const dateStr = formatTehranDate(booking.start);
+        const timeStr = formatTehranTime(booking.start);
 
         const message = `✅ *رزرو شما تایید شد!*
 
-💅 سرویس: ${booking.service?.name || 'خدمات زیبایی'}
-👤 متخصص: ${booking.employee?.name || '-'}
+💅 سرویس: ${booking.service?.name || 'خدمات ناخن'}
+👤 Nail Artist: ${booking.employee?.name || '-'}
 📅 تاریخ: ${dateStr}
 ⏰ ساعت: ${timeStr}
 
@@ -186,7 +194,7 @@ ${SALON_ADDRESS}
         await sendTelegramMessage(targetChatId, message, options);
       }
 
-      // ۲. حالت کنسل شده (توسط ادمین)
+      // ۲. پیام لغو
       else if (status === 'cancelled') {
         const message = `❌ *رزرو شما لغو شد.*
 
@@ -195,10 +203,6 @@ ${SALON_ADDRESS}
 در صورت نیاز به هماهنگی مجدد، با ما تماس بگیرید.`;
         await sendTelegramMessage(targetChatId, message);
       }
-    } else {
-      console.warn(
-        '⚠️ No Telegram ID found for this booking. Notification skipped.'
-      );
     }
 
     return res.json({ message: 'Status updated', booking });
@@ -211,7 +215,7 @@ ${SALON_ADDRESS}
 });
 
 // --------------------------------------------------------
-// PATCH: آپلود رسید (توسط کاربر)
+// PATCH: آپلود رسید
 // --------------------------------------------------------
 router.patch('/:id/receipt', async (req, res) => {
   try {
@@ -238,7 +242,7 @@ router.patch('/:id/receipt', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// PATCH: لغو دستی (توسط کاربر در مینی‌اپ)
+// PATCH: لغو دستی توسط کاربر
 // --------------------------------------------------------
 router.patch('/:id/cancel', async (req, res) => {
   try {
