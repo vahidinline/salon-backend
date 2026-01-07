@@ -131,4 +131,36 @@ router.post('/public-fcm-token', async (req, res) => {
   }
 });
 
+router.post('/assign-fcm-token-temp', async (req, res) => {
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return res.status(400).json({ error: 'FCM Token is required' });
+  }
+
+  try {
+    // پیدا کردن اولین ادمین موجود در دیتابیس
+    // (چون در لاگین نمایشی نمی‌دانیم کدام ادمین لاگین کرده)
+    const anyAdmin = await Admin.findOne({});
+
+    if (!anyAdmin) {
+      return res
+        .status(404)
+        .json({ error: 'No admin found in database to assign token.' });
+    }
+
+    // آپدیت کردن توکن برای آن ادمین
+    anyAdmin.fcmToken = fcmToken;
+    await anyAdmin.save();
+
+    console.log(`✅ [TEMP] FCM Token assigned to admin ID: ${anyAdmin._id}`);
+    res
+      .status(200)
+      .json({ message: 'Token assigned successfully (temporary mode)' });
+  } catch (error) {
+    console.error('Error assigning temp token:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
