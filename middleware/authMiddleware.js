@@ -16,7 +16,6 @@ const authenticateAdmin = (req, res, next) => {
         .status(403)
         .json({ message: 'توکن نامعتبر یا منقضی شده است.' });
     }
-    // اطلاعات کاربر دیکد شده را به درخواست اضافه می‌کنیم
     req.admin = decodedUser;
     next();
   });
