@@ -1,39 +1,50 @@
 // services/fcmService.js
 const admin = require('firebase-admin');
-const path = require('path');
-
-// مسیر فایل JSON کلید خصوصی که از کنسول فایربیس دانلود کردید.
-// فرض بر این است که این فایل در ریشه پروژه (کنار index.js و package.json) قرار دارد
-// و نام آن دقیقاً 'firebase-service-account.json' است.
-const serviceAccountPath = path.join(
-  process.cwd(),
-  'firebase-service-account.json'
-);
 
 let isInitialized = false;
 
 try {
   // بررسی می‌کنیم که آیا فایربیس قبلاً راه‌اندازی شده یا نه، تا از خطای تکراری جلوگیری شود
   if (admin.apps.length === 0) {
-    // خواندن فایل کلید خصوصی
-    const serviceAccount = require(serviceAccountPath);
+    // خواندن محتویات فایل کلید خصوصی از متغیر محیطی در آژور
+    const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
-    // راه‌اندازی SDK ادمین فایربیس با کلید خصوصی
+    if (!serviceAccountEnv) {
+      // اگر متغیر محیطی ست نشده باشد، خطا می‌دهیم
+      throw new Error(
+        'FIREBASE_SERVICE_ACCOUNT_JSON environment variable is not set.'
+      );
+    }
+
+    let serviceAccount;
+    try {
+      // تلاش برای تبدیل رشته JSON به آبجکت جاوااسکریپت
+      serviceAccount = JSON.parse(serviceAccountEnv);
+    } catch (parseError) {
+      // اگر رشته JSON معتبر نباشد (مثلاً ناقص کپی شده باشد)
+      console.error(
+        '❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON environment variable.'
+      );
+      throw parseError; // خطای اصلی را پرتاب می‌کنیم
+    }
+
+    // راه‌اندازی SDK ادمین فایربیس با کلید خصوصی خوانده شده
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
 
     isInitialized = true;
-    console.log('✅ Firebase Admin Initialized successfully');
+    console.log('✅ Firebase Admin Initialized successfully (from env var)');
   } else {
     isInitialized = true; // قبلاً راه‌اندازی شده
   }
 } catch (error) {
-  console.error(
-    '❌ Error initializing Firebase Admin. Check if "firebase-service-account.json" exists in project root.',
-    error.message
-  );
-  // اگر فایل کلید پیدا نشود یا مشکل داشته باشد، این خطا چاپ می‌شود.
+  console.error('❌ Error initializing Firebase Admin:', error.message);
+  if (error.message.includes('environment variable is not set')) {
+    console.error(
+      '   -> Hint: Make sure to set "FIREBASE_SERVICE_ACCOUNT_JSON" in Azure App Service Configuration.'
+    );
+  }
 }
 
 /**
