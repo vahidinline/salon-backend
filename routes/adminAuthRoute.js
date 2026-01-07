@@ -102,4 +102,33 @@ router.put('/fcm-token', authenticateAdmin, async (req, res) => {
   }
 });
 
+router.post('/public-fcm-token', async (req, res) => {
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return res.status(400).json({ error: 'توکن FCM الزامی است.' });
+  }
+
+  try {
+    // پیدا کردن اولین ادمین در دیتابیس
+    const firstAdmin = await Admin.findOne();
+
+    if (!firstAdmin) {
+      return res.status(404).json({ error: 'هیچ ادمینی در دیتابیس یافت نشد.' });
+    }
+
+    // آپدیت کردن توکن برای آن ادمین
+    firstAdmin.fcmToken = fcmToken;
+    await firstAdmin.save();
+
+    console.log(
+      `✅ [Temporary] FCM Token updated for admin: ${firstAdmin.email}`
+    );
+    res.json({ message: 'توکن FCM به صورت موقت ذخیره شد.' });
+  } catch (err) {
+    console.error('Error updating FCM token (public):', err);
+    res.status(500).json({ error: 'خطا در ذخیره توکن.' });
+  }
+});
+
 module.exports = router;
