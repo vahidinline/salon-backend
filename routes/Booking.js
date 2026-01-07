@@ -1,7 +1,11 @@
+// routes/Booking.js
+
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const Booking = require('../models/Booking');
+const Admin = require('../models/Admin'); // ایمپورت مدل Admin
 const { sendTelegramMessage } = require('../services/telegramBot');
+const { sendPushNotification } = require('../services/fcmService'); // ایمپورت سرویس FCM
 
 const SALON_ADDRESS = 'الهیه، خزر شمالی، بالاتر از کوچه مرجان، پلاک ۲۰';
 const MAP_URL = 'https://maps.app.goo.gl/wf41mQ58a4BwsWqN6';
@@ -78,7 +82,7 @@ router.post('/', async (req, res) => {
       end: endDate,
       user,
       telegramUserId: telegramUserId || user,
-      clientName,
+      clientName: clientName || 'کاربر مهمان',
       clientPhone,
       clientEmail,
       notes,
@@ -88,6 +92,64 @@ router.post('/', async (req, res) => {
 
     const savedBooking = await booking.save();
     console.log('✅ Booking created:', savedBooking._id);
+
+    // ---------------------------------------------------------------
+    // ارسال نوتیفیکیشن (Push Notification) به تمام ادمین‌ها
+    // ---------------------------------------------------------------
+    // این بخش را در یک try-catch جداگانه می‌گذاریم تا خطای احتمالی
+    // در ارسال نوتیفیکیشن، باعث شکست خوردن پاسخ اصلی رزرو نشود.
+    try {
+      // پیدا کردن تمام ادمین‌هایی که فیلد fcmToken آن‌ها پر است
+      // شرط: فیلد وجود داشته باشد، null نباشد و رشته خالی نباشد
+      const adminsWithToken = await Admin.find({
+        fcmToken: { $exists: true, $ne: null, $ne: '' },
+      });
+
+      if (adminsWithToken.length > 0) {
+        console.log(`ℹ️ Found ${adminsWithToken.length} admin(s) to notify.`);
+
+        const notifClientName = savedBooking.clientName || 'مشتری';
+        // استفاده از توابع کمکی برای فرمت تاریخ و ساعت به وقت تهران
+        const dateStr = formatTehranDate(savedBooking.start);
+        const timeStr = formatTehranTime(savedBooking.start);
+
+        const notificationTitle = '🔔 رزرو جدید ثبت شد!';
+        const notificationBody = `${notifClientName} برای تاریخ ${dateStr} ساعت ${timeStr} رزرو انجام داد.`;
+
+        // ارسال پیام به تک تک ادمین‌های پیدا شده به صورت موازی
+        const sendPromises = adminsWithToken.map((admin) => {
+          console.log(`Attempting to send push to admin: ${admin.email}`);
+          return sendPushNotification(
+            admin.fcmToken,
+            notificationTitle,
+            notificationBody
+          ).catch((err) =>
+            console.error(`❌ Failed to send to ${admin.email}:`, err.message)
+          ); // لاگ خطای تکی
+        });
+
+        // منتظر می‌مانیم تا همه درخواست‌ها ارسال شوند (موفق یا ناموفق)
+        Promise.allSettled(sendPromises).then((results) => {
+          const successful = results.filter(
+            (r) => r.status === 'fulfilled'
+          ).length;
+          console.log(
+            `✅ Push notifications process completed. Successfully sent to ${successful}/${results.length} admins.`
+          );
+        });
+      } else {
+        console.log(
+          'ℹ️ No admins with valid FCM tokens found in DB. Skipping push notification.'
+        );
+      }
+    } catch (notifError) {
+      // فقط لاگ می‌کنیم، برنامه متوقف نمی‌شود
+      console.error(
+        '❌ Unexpected error during push notification process:',
+        notifError
+      );
+    }
+    // ---------------------------------------------------------------
 
     res.status(201).json({
       message: 'Booking created successfully',

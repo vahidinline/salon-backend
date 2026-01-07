@@ -83,4 +83,23 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+router.put('/fcm-token', authenticateAdmin, async (req, res) => {
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return res.status(400).json({ error: 'توکن FCM الزامی است.' });
+  }
+
+  try {
+    // آپدیت کردن توکن برای ادمینی که لاگین کرده (آیدی از میدل‌ور می‌آید)
+    await Admin.findByIdAndUpdate(req.admin.userId, { fcmToken: fcmToken });
+
+    console.log(`✅ FCM Token updated for admin: ${req.admin.email}`);
+    res.json({ message: 'توکن FCM با موفقیت ذخیره شد.' });
+  } catch (err) {
+    console.error('Error updating FCM token:', err);
+    res.status(500).json({ error: 'خطا در ذخیره توکن.' });
+  }
+});
+
 module.exports = router;
