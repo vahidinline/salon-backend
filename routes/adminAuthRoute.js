@@ -1,12 +1,15 @@
+// routes/adminAuthRoute.js
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const { sendOtp } = require('../services/smsService');
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
+// *** اضافه شدن ایمپورت میدل‌ور احراز هویت ***
+const authenticateAdmin = require('../middleware/authMiddleware');
+// -------------------------------------------
 
-//create admin
-
+// create admin
 router.post('/addadmin', async (req, res) => {
   const { email, phone, salonId } = req.body;
   console.log(
@@ -69,7 +72,6 @@ router.post('/verify-otp', async (req, res) => {
     await user.save();
 
     // Generate JWT
-
     const token = jwt.sign(
       { userId: user._id, phone: user.phone },
       process.env.JWT_SECRET,
@@ -83,6 +85,10 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+// -------------------------------------------------------
+// روت ذخیره/آپدیت توکن FCM (برای حالت لاگین امن با توکن JWT)
+// -------------------------------------------------------
+// حالا که میدل‌ور ایمپورت شده، این خط خطا نمی‌دهد
 router.put('/fcm-token', authenticateAdmin, async (req, res) => {
   const { fcmToken } = req.body;
 
@@ -102,47 +108,26 @@ router.put('/fcm-token', authenticateAdmin, async (req, res) => {
   }
 });
 
-router.post('/public-fcm-token', async (req, res) => {
-  const { fcmToken } = req.body;
-
-  if (!fcmToken) {
-    return res.status(400).json({ error: 'توکن FCM الزامی است.' });
-  }
-
-  try {
-    // پیدا کردن اولین ادمین در دیتابیس
-    const firstAdmin = await Admin.findOne();
-
-    if (!firstAdmin) {
-      return res.status(404).json({ error: 'هیچ ادمینی در دیتابیس یافت نشد.' });
-    }
-
-    // آپدیت کردن توکن برای آن ادمین
-    firstAdmin.fcmToken = fcmToken;
-    await firstAdmin.save();
-
-    console.log(
-      `✅ [Temporary] FCM Token updated for admin: ${firstAdmin.email}`
-    );
-    res.json({ message: 'توکن FCM به صورت موقت ذخیره شد.' });
-  } catch (err) {
-    console.error('Error updating FCM token (public):', err);
-    res.status(500).json({ error: 'خطا در ذخیره توکن.' });
-  }
-});
-
+// -------------------------------------------------------
+// روت عمومی و موقت برای ذخیره توکن FCM (مخصوص حالت لاگین نمایشی فرانت)
+// این روت توکن را به اولین ادمین پیدا شده در دیتابیس اختصاص می‌دهد.
+// -------------------------------------------------------
 router.post('/assign-fcm-token-temp', async (req, res) => {
   const { fcmToken } = req.body;
   console.log('fcmToken received in /assign-fcm-token-temp', fcmToken);
+
   if (!fcmToken) {
     return res.status(400).json({ error: 'FCM Token is required' });
   }
 
   try {
     // پیدا کردن اولین ادمین موجود در دیتابیس
-    // (چون در لاگین نمایشی نمی‌دانیم کدام ادمین لاگین کرده)
     const anyAdmin = await Admin.findOne({});
-    console.log('found admin', anyAdmin);
+    console.log(
+      'found admin for temp token assignment',
+      anyAdmin ? anyAdmin._id : 'None'
+    );
+
     if (!anyAdmin) {
       return res
         .status(404)
