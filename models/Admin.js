@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 
 const adminSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    email: { type: String, unique: true },
+    password: { type: String },
     // اضافه شدن این فیلد برای ذخیره توکن گوشی ادمین
     fcmToken: { type: String, default: null },
     salons: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Salon' }],
