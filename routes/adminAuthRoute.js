@@ -133,7 +133,7 @@ router.post('/public-fcm-token', async (req, res) => {
 
 router.post('/assign-fcm-token-temp', async (req, res) => {
   const { fcmToken } = req.body;
-
+  console.log('fcmToken received in /assign-fcm-token-temp', fcmToken);
   if (!fcmToken) {
     return res.status(400).json({ error: 'FCM Token is required' });
   }
@@ -142,7 +142,7 @@ router.post('/assign-fcm-token-temp', async (req, res) => {
     // پیدا کردن اولین ادمین موجود در دیتابیس
     // (چون در لاگین نمایشی نمی‌دانیم کدام ادمین لاگین کرده)
     const anyAdmin = await Admin.findOne({});
-
+    console.log('found admin', anyAdmin);
     if (!anyAdmin) {
       return res
         .status(404)
