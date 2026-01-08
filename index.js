@@ -17,6 +17,7 @@ const Client = require('./routes/ClientsRoute');
 const AllAvailabilities = require('./routes/AllAvailibilities');
 const bookingRoutes = require('./routes/Booking');
 const EmployeeAvailibility = require('./routes/employeeAvailabilityRoute');
+const adminAuthRoutes = require('./routes/adminAuthRoute');
 
 // Telegram Service
 const { sendTelegramMessage } = require('./services/telegramBot');
@@ -50,6 +51,7 @@ app.use('/availabilities', AllAvailabilities);
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/upload', uploadRouter);
+app.use('/admin-auth', adminAuthRoutes);
 
 const uri = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5001;
