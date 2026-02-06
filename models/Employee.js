@@ -9,36 +9,22 @@ const employeeSchema = new mongoose.Schema(
     },
     name: { type: String, required: true },
     services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
+
+    // ✅ این فیلد حتما باید اینجا باشد تا Mongoose آن را بخواند
+    duration: { type: Number },
+
     customDurations: [
       {
         service: { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
-        duration: { type: Number, required: true }, // زمان به دقیقه (مثلا 45)
+        duration: { type: Number, required: true },
       },
     ],
+
     workSchedule: [
       {
-        day: {
-          type: String,
-          enum: [
-            'saturday',
-            'sunday',
-            'monday',
-            'tuesday',
-            'wednesday',
-            'thursday',
-            'friday',
-            'شنبه',
-            'یکشنبه',
-            'دوشنبه',
-            'سه‌شنبه',
-            'چهارشنبه',
-            'پنجشنبه',
-            'جمعه',
-          ],
-          required: true,
-        },
-        startTime: { type: String, required: true }, // e.g. "10:30"
-        endTime: { type: String, required: true }, // e.g. "18:30"
+        day: { type: String, required: true },
+        startTime: { type: String, required: true },
+        endTime: { type: String, required: true },
       },
     ],
 
