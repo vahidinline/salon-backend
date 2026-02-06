@@ -9,7 +9,12 @@ const employeeSchema = new mongoose.Schema(
     },
     name: { type: String, required: true },
     services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
-
+    customDurations: [
+      {
+        service: { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
+        duration: { type: Number, required: true }, // زمان به دقیقه (مثلا 45)
+      },
+    ],
     workSchedule: [
       {
         day: {
@@ -42,7 +47,7 @@ const employeeSchema = new mongoose.Schema(
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     avatar: { type: String, default: 'https://i.ibb.co/JW1sG7MT/avatar.png' },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model('Employee', employeeSchema);

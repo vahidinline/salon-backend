@@ -1,21 +1,19 @@
-// routes/Booking.js
-
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const Booking = require('../models/Booking');
-const Admin = require('../models/Admin'); // ایمپورت مدل Admin
+const Service = require('../models/Service'); // اضافه شد
+const Employee = require('../models/Employee'); // اضافه شد
 const { sendTelegramMessage } = require('../services/telegramBot');
-const { sendPushNotification } = require('../services/fcmService'); // ایمپورت سرویس FCM
 
 const SALON_ADDRESS = 'الهیه، خزر شمالی، بالاتر از کوچه مرجان، پلاک ۲۰';
 const MAP_URL = 'https://maps.app.goo.gl/wf41mQ58a4BwsWqN6';
 
-// Helper function to format date/time to Tehran Timezone
+// توابع کمکی فرمت تاریخ
 const formatTehranDate = (date) => {
   return new Date(date).toLocaleDateString('fa-IR', {
     timeZone: 'Asia/Tehran',
     year: 'numeric',
-    month: 'numeric', // یا 'long' برای نام ماه
+    month: 'numeric',
     day: 'numeric',
   });
 };
@@ -25,12 +23,12 @@ const formatTehranTime = (date) => {
     timeZone: 'Asia/Tehran',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false, // نمایش ۲۴ ساعته (مثلا 14:30) یا true برای ب.ظ
+    hour12: false,
   });
 };
 
 // --------------------------------------------------------
-// POST: ثبت رزرو جدید
+// POST: ثبت رزرو جدید (با محاسبه داینامیک زمان پایان)
 // --------------------------------------------------------
 router.post('/', async (req, res) => {
   try {
@@ -40,7 +38,7 @@ router.post('/', async (req, res) => {
       service,
       additionalService,
       start,
-      end,
+      // end, // زمان پایان را از کلاینت نمی‌گیریم، خودمان حساب می‌کنیم
       user,
       clientName,
       clientPhone,
@@ -53,9 +51,36 @@ router.post('/', async (req, res) => {
 
     const finalSalonId = salon || req.params.salonId;
     const startDate = new Date(start);
-    const endDate = new Date(end);
 
-    // چک تداخل
+    // ۱. دریافت اطلاعات کارمند و سرویس
+    const serviceData = await Service.findById(service);
+    const employeeData = await Employee.findById(employee);
+
+    if (!serviceData || !employeeData) {
+      return res.status(404).json({ message: 'Service or Employee not found' });
+    }
+
+    // ۲. محاسبه مدت زمان (Duration)
+    // پیش‌فرض: زمان تعریف شده در سرویس
+    let duration = serviceData.duration;
+
+    // چک کردن اورراید (Override): آیا کارمند زمان خاصی برای این سرویس دارد؟
+    if (
+      employeeData.customDurations &&
+      employeeData.customDurations.length > 0
+    ) {
+      const customSetting = employeeData.customDurations.find(
+        (c) => c.service.toString() === service.toString(),
+      );
+      if (customSetting) {
+        duration = customSetting.duration;
+      }
+    }
+
+    // ۳. محاسبه زمان پایان دقیق
+    const endDate = new Date(startDate.getTime() + duration * 60000);
+
+    // ۴. بررسی تداخل زمانی (Conflict Check)
     const conflict = await Booking.findOne({
       employee,
       status: { $in: ['pending', 'confirmed', 'paid', 'review'] },
@@ -73,16 +98,17 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // ۵. ساخت و ذخیره رزرو
     const booking = new Booking({
       salon: finalSalonId,
       employee,
       service,
       additionalService,
       start: startDate,
-      end: endDate,
+      end: endDate, // استفاده از زمان محاسبه شده
       user,
       telegramUserId: telegramUserId || user,
-      clientName: clientName || 'کاربر مهمان',
+      clientName,
       clientPhone,
       clientEmail,
       notes,
@@ -92,64 +118,6 @@ router.post('/', async (req, res) => {
 
     const savedBooking = await booking.save();
     console.log('✅ Booking created:', savedBooking._id);
-
-    // ---------------------------------------------------------------
-    // ارسال نوتیفیکیشن (Push Notification) به تمام ادمین‌ها
-    // ---------------------------------------------------------------
-    // این بخش را در یک try-catch جداگانه می‌گذاریم تا خطای احتمالی
-    // در ارسال نوتیفیکیشن، باعث شکست خوردن پاسخ اصلی رزرو نشود.
-    try {
-      // پیدا کردن تمام ادمین‌هایی که فیلد fcmToken آن‌ها پر است
-      // شرط: فیلد وجود داشته باشد، null نباشد و رشته خالی نباشد
-      const adminsWithToken = await Admin.find({
-        fcmToken: { $exists: true, $ne: null, $ne: '' },
-      });
-
-      if (adminsWithToken.length > 0) {
-        console.log(`ℹ️ Found ${adminsWithToken.length} admin(s) to notify.`);
-
-        const notifClientName = savedBooking.clientName || 'مشتری';
-        // استفاده از توابع کمکی برای فرمت تاریخ و ساعت به وقت تهران
-        const dateStr = formatTehranDate(savedBooking.start);
-        const timeStr = formatTehranTime(savedBooking.start);
-
-        const notificationTitle = '🔔 رزرو جدید ثبت شد!';
-        const notificationBody = `${notifClientName} برای تاریخ ${dateStr} ساعت ${timeStr} رزرو انجام داد.`;
-
-        // ارسال پیام به تک تک ادمین‌های پیدا شده به صورت موازی
-        const sendPromises = adminsWithToken.map((admin) => {
-          console.log(`Attempting to send push to admin: ${admin.email}`);
-          return sendPushNotification(
-            admin.fcmToken,
-            notificationTitle,
-            notificationBody
-          ).catch((err) =>
-            console.error(`❌ Failed to send to ${admin.email}:`, err.message)
-          ); // لاگ خطای تکی
-        });
-
-        // منتظر می‌مانیم تا همه درخواست‌ها ارسال شوند (موفق یا ناموفق)
-        Promise.allSettled(sendPromises).then((results) => {
-          const successful = results.filter(
-            (r) => r.status === 'fulfilled'
-          ).length;
-          console.log(
-            `✅ Push notifications process completed. Successfully sent to ${successful}/${results.length} admins.`
-          );
-        });
-      } else {
-        console.log(
-          'ℹ️ No admins with valid FCM tokens found in DB. Skipping push notification.'
-        );
-      }
-    } catch (notifError) {
-      // فقط لاگ می‌کنیم، برنامه متوقف نمی‌شود
-      console.error(
-        '❌ Unexpected error during push notification process:',
-        notifError
-      );
-    }
-    // ---------------------------------------------------------------
 
     res.status(201).json({
       message: 'Booking created successfully',
@@ -162,7 +130,7 @@ router.post('/', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// GET: لیست رزروها
+// GET: دریافت لیست رزروها
 // --------------------------------------------------------
 router.get('/', async (req, res) => {
   try {
@@ -191,6 +159,7 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET Single Booking
 router.get('/:bookingId', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId)
@@ -203,7 +172,7 @@ router.get('/:bookingId', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// PATCH: آپدیت وضعیت (توسط ادمین)
+// PATCH: آپدیت وضعیت رزرو
 // --------------------------------------------------------
 router.patch('/:id/updatestatus', async (req, res) => {
   try {
@@ -225,12 +194,11 @@ router.patch('/:id/updatestatus', async (req, res) => {
 
     await booking.save();
 
+    // ارسال نوتیفیکیشن تلگرام
     const targetChatId = booking.telegramUserId || booking.user;
 
     if (targetChatId) {
-      // ۱. پیام تایید (با ساعت اصلاح شده)
       if (status === 'confirmed') {
-        // استفاده از توابع کمکی با تایم‌زون تهران
         const dateStr = formatTehranDate(booking.start);
         const timeStr = formatTehranTime(booking.start);
 
@@ -254,10 +222,7 @@ ${SALON_ADDRESS}
           },
         };
         await sendTelegramMessage(targetChatId, message, options);
-      }
-
-      // ۲. پیام لغو
-      else if (status === 'cancelled') {
+      } else if (status === 'cancelled') {
         const message = `❌ *رزرو شما لغو شد.*
 
 علت: لغو توسط مدیریت سالن
@@ -276,9 +241,7 @@ ${SALON_ADDRESS}
   }
 });
 
-// --------------------------------------------------------
 // PATCH: آپلود رسید
-// --------------------------------------------------------
 router.patch('/:id/receipt', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -303,9 +266,7 @@ router.patch('/:id/receipt', async (req, res) => {
   }
 });
 
-// --------------------------------------------------------
 // PATCH: لغو دستی توسط کاربر
-// --------------------------------------------------------
 router.patch('/:id/cancel', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
